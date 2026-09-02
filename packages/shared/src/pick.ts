@@ -7,7 +7,8 @@ export const PICK_DOMAIN_NAME = "ProofLeague";
 export const PICK_DOMAIN_VERSION = "1";
 
 // Field order is part of the canonical encoding — it must match LeagueCore's abi.encode leaf
-// layout exactly; the CI conformance fixture (armed with Solidity vectors in Story 2.2) holds it.
+// layout exactly. The CI conformance fixture holds it from both planes: eip712-vectors.json
+// digests are re-derived here (pick.selftest.ts) and in Solidity (test/PickLeaf.t.sol).
 export const PICK_TYPES = {
   Pick: [
     { name: "player", type: "address" },

@@ -273,23 +273,24 @@ contract LeagueCoreTest is Test {
         assertEq(_configHash(1), before);
     }
 
-    /// Tripwire, not proof: the real guarantee is the ABI surface itself (createMarket is
-    /// the only state-changing function this slice ships). The probe raw-calls the admin
-    /// selectors a privileged design would have grown and asserts none exists and nothing
-    /// moved (AD-20).
+    /// Tripwire, not proof: the real guarantee is the ABI surface itself (createMarket and
+    /// commitPicks are the only state-changing functions shipped so far). The probe raw-calls
+    /// the admin selectors a privileged design would have grown and asserts none exists and
+    /// nothing moved (AD-20).
     function test_noPrivilegedMutationPath() public {
         MarketConfig memory c = _validConfig();
         vm.prank(OPERATOR);
         league.createMarket(c);
         bytes32 before = _configHash(1);
 
-        bytes[] memory probes = new bytes[](6);
+        bytes[] memory probes = new bytes[](7);
         probes[0] = abi.encodeWithSignature("setLockTime(uint256,uint64)", 1, T0);
         probes[1] = abi.encodeWithSignature("setBoundaries(uint256,int256[])", 1, new int256[](2));
         probes[2] = abi.encodeWithSignature("adminResolve(uint256,uint8)", 1, 0);
         probes[3] = abi.encodeWithSignature("transferOwnership(address)", STRANGER);
         probes[4] = abi.encodeWithSignature("upgradeTo(address)", STRANGER);
         probes[5] = abi.encodeWithSignature("addMarketCreator(address)", STRANGER);
+        probes[6] = abi.encodeWithSignature("setPickRoot(uint256,bytes32)", 1, keccak256("swapped"));
         for (uint256 i = 0; i < probes.length; i++) {
             vm.prank(OPERATOR);
             (bool ok,) = address(league).call(probes[i]);
@@ -310,5 +311,135 @@ contract LeagueCoreTest is Test {
     // an off-chain validator accept a config the chain rejects (AD-14).
     function test_minCommitMarginMirrorsSharedConstant() public view {
         assertEq(league.MIN_COMMIT_MARGIN(), 300);
+    }
+
+    // ---- Story 2.2 AC 1: commitPicks — windowed, creator-gated, monotone (AD-14, FR-9) ----
+
+    bytes32 internal constant ROOT = keccak256("pickset-root");
+    bytes32 internal constant SHA = keccak256("pickset-file-bytes");
+    string internal constant URI = "picksets/1-4f2a.json";
+
+    function _createdMarket() internal returns (uint256 id, MarketConfig memory c) {
+        c = _validConfig();
+        vm.prank(OPERATOR);
+        id = league.createMarket(c);
+    }
+
+    /// The lower bound is inclusive: committing exactly at lockTime is legal, stores the
+    /// commitment verbatim, flips Created -> Committed and leaves the config untouched.
+    function test_commitPicks_storesCommitmentAndEmitsAtLockTime() public {
+        (uint256 id, MarketConfig memory c) = _createdMarket();
+        bytes32 configBefore = _configHash(id);
+        vm.warp(c.lockTime);
+        vm.expectEmit(true, true, true, true);
+        emit LeagueCore.PicksCommitted(id, ROOT, URI, SHA);
+        vm.prank(WORKER);
+        league.commitPicks(id, ROOT, URI, SHA);
+
+        assertEq(uint8(league.stateOf(id)), uint8(MarketState.Committed));
+        LeagueCore.PickCommitment memory got = league.getPickCommitment(id);
+        assertEq(got.root, ROOT);
+        assertEq(got.uri, URI);
+        assertEq(got.sha256Hash, SHA);
+        assertEq(got.committedAt, c.lockTime);
+        assertEq(_configHash(id), configBefore);
+    }
+
+    /// The last legal second: without this, a window-narrowing off-by-one (e.g. an
+    /// accidental `>= sourceWindowOpen - 1`) would pass the whole suite [review 2026-09-02].
+    function test_commitPicks_succeedsAtLastSecondOfWindow() public {
+        (uint256 id, MarketConfig memory c) = _createdMarket();
+        vm.warp(c.sourceWindowOpen - 1);
+        vm.prank(WORKER);
+        league.commitPicks(id, ROOT, URI, SHA);
+        assertEq(uint8(league.stateOf(id)), uint8(MarketState.Committed));
+    }
+
+    function test_commitPicks_revertsBeforeLockTime() public {
+        (uint256 id, MarketConfig memory c) = _createdMarket();
+        vm.warp(c.lockTime - 1);
+        vm.prank(WORKER);
+        vm.expectRevert(LeagueCore.CommitBeforeLock.selector);
+        league.commitPicks(id, ROOT, URI, SHA);
+    }
+
+    /// The upper bound is exclusive: at sourceWindowOpen the outcome starts being computable,
+    /// so the window is already shut. A market that missed it has only the void path (AD-14).
+    function test_commitPicks_revertsAtSourceWindowOpen() public {
+        (uint256 id, MarketConfig memory c) = _createdMarket();
+        vm.warp(c.sourceWindowOpen);
+        vm.prank(WORKER);
+        vm.expectRevert(LeagueCore.CommitWindowClosed.selector);
+        league.commitPicks(id, ROOT, URI, SHA);
+
+        vm.warp(c.voidDeadline + 1);
+        vm.prank(WORKER);
+        vm.expectRevert(LeagueCore.CommitWindowClosed.selector);
+        league.commitPicks(id, ROOT, URI, SHA);
+    }
+
+    function test_commitPicks_revertsWhenCallerNotCreator() public {
+        (uint256 id, MarketConfig memory c) = _createdMarket();
+        vm.warp(c.lockTime);
+        vm.prank(STRANGER);
+        vm.expectRevert(LeagueCore.NotMarketCreator.selector);
+        league.commitPicks(id, ROOT, URI, SHA);
+    }
+
+    function test_commitPicks_revertsOnUnknownMarket() public {
+        vm.prank(WORKER);
+        vm.expectRevert(LeagueCore.UnknownMarket.selector);
+        league.commitPicks(1, ROOT, URI, SHA);
+    }
+
+    /// The machine is monotone: a second commit can never replace the first root, from any
+    /// caller, at any time inside the window.
+    function test_commitPicks_revertsWhenAlreadyCommitted() public {
+        (uint256 id, MarketConfig memory c) = _createdMarket();
+        vm.warp(c.lockTime);
+        vm.prank(WORKER);
+        league.commitPicks(id, ROOT, URI, SHA);
+        vm.prank(OPERATOR);
+        vm.expectRevert(LeagueCore.MarketNotCommittable.selector);
+        league.commitPicks(id, keccak256("second-root"), URI, SHA);
+    }
+
+    /// AD-14: zero live Picks commits the canonical empty root (bytes32(0)) — the lifecycle
+    /// proceeds and zero-pick markets never rot uncommitted. State, not the root value, is
+    /// the committed signal, so the zero root is unambiguous.
+    function test_commitPicks_acceptsCanonicalEmptyRoot() public {
+        (uint256 id, MarketConfig memory c) = _createdMarket();
+        vm.warp(c.lockTime);
+        vm.prank(WORKER);
+        league.commitPicks(id, bytes32(0), URI, SHA);
+        assertEq(uint8(league.stateOf(id)), uint8(MarketState.Committed));
+        assertEq(league.getPickCommitment(id).root, bytes32(0));
+    }
+
+    /// The uri and sha bind the published pick-set file to the chain (AD-5's dual-home
+    /// evidence trail); an empty binding would commit to nothing verifiable.
+    function test_commitPicks_revertsOnZeroCommitmentBinding() public {
+        (uint256 id, MarketConfig memory c) = _createdMarket();
+        vm.warp(c.lockTime);
+        vm.prank(WORKER);
+        vm.expectRevert(LeagueCore.ZeroCommitmentField.selector);
+        league.commitPicks(id, ROOT, "", SHA);
+        vm.prank(WORKER);
+        vm.expectRevert(LeagueCore.ZeroCommitmentField.selector);
+        league.commitPicks(id, ROOT, URI, bytes32(0));
+    }
+
+    function test_getPickCommitment_revertsOnUnknownMarket() public {
+        vm.expectRevert(LeagueCore.UnknownMarket.selector);
+        league.getPickCommitment(1);
+    }
+
+    /// A known-but-uncommitted market must revert, not hand back an all-zero struct: with
+    /// bytes32(0) the legal empty root, a silent zero struct would be indistinguishable from
+    /// a real zero-pick commitment without a second stateOf call [review 2026-09-02].
+    function test_getPickCommitment_revertsWhenNotCommitted() public {
+        (uint256 id,) = _createdMarket();
+        vm.expectRevert(LeagueCore.NotCommitted.selector);
+        league.getPickCommitment(id);
     }
 }

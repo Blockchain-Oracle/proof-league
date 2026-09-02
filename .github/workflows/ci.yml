@@ -17,6 +17,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @proof-league/shared run selftest
+      # Freshness gate [review 2026-09-02]: the committed conformance vectors must be the
+      # generator's current output, or both planes would pass against a stale fixture.
+      - run: pnpm --filter @proof-league/shared exec tsx src/eip712-vectors.gen.ts
+      - run: git diff --exit-code packages/shared/src/eip712-vectors.json
       - run: pnpm check
       - run: pnpm build
   contracts:

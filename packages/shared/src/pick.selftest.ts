@@ -1,38 +1,91 @@
-// EIP-712 conformance fixture, trivial-vector stage (AD-12): ships green from the first commit
-// and is armed with real Solidity-vs-TS vectors in Story 2.2. The mutation check below proves the
-// gate can actually go red — a fixture that cannot fail is not a gate.
+// EIP-712 conformance fixture, armed (Story 2.2, AD-5): re-derives every shared vector in
+// eip712-vectors.json — the same file contracts/test/PickLeaf.t.sol holds against LeagueCore's
+// abi.encode leaf — so viem drift, schema edits and accidental vector corruption all fail CI
+// from this side too. The mutation check proves the gate can actually go red — a fixture that
+// cannot fail is not a gate.
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { hashPick, type PickDomain, type PickMessage } from "./pick.js";
 
-const domain: PickDomain = {
-  chainId: 1, // trivial self-test vector only; real vectors bind the CC3 chain id in Story 2.2
-  verifyingContract: "0x0000000000000000000000000000000000000001",
-};
-const pick: PickMessage = {
-  player: "0x0000000000000000000000000000000000000002",
-  marketId: 1n,
-  optionIndex: 0,
-  stake: 10,
-  nonce: 1,
-  utcDay: 20700,
-  stakedSoFarInDay: 10,
+type Vector = {
+  readonly name: string;
+  readonly chainId: number;
+  readonly verifyingContract: PickDomain["verifyingContract"];
+  readonly pick: {
+    readonly player: PickMessage["player"];
+    readonly marketId: string;
+    readonly optionIndex: number;
+    readonly stake: number;
+    readonly nonce: number;
+    readonly utcDay: number;
+    readonly stakedSoFarInDay: number;
+  };
+  readonly digest: string;
 };
 
-const a = hashPick(domain, pick);
-const b = hashPick(domain, pick);
-if (a !== b) throw new Error("selftest: hashing is not deterministic");
+const file = JSON.parse(
+  readFileSync(fileURLToPath(new URL("./eip712-vectors.json", import.meta.url)), "utf8"),
+) as { count: number; vectors: Vector[] };
 
-// Mutation check: perturbing any single field must change the hash, or the commitment scheme
-// would let two different Picks share a leaf.
-const mutations: PickMessage[] = [
-  { ...pick, stake: 11 },
-  { ...pick, nonce: 2 },
-  { ...pick, optionIndex: 1 },
-  { ...pick, utcDay: 20701 },
-  { ...pick, stakedSoFarInDay: 20 },
-  { ...pick, marketId: 2n },
-  { ...pick, player: "0x0000000000000000000000000000000000000003" },
-];
-for (const m of mutations) {
-  if (hashPick(domain, m) === a) throw new Error(`selftest: mutation did not change hash: ${JSON.stringify(m, (_, v) => typeof v === "bigint" ? v.toString() : v)}`);
+// The armed set carries at least: representative, type-ceilings, tombstone, domain-separation.
+// A shrunken file must fail loudly, not pass emptily.
+if (file.count < 4 || file.vectors.length !== file.count) {
+  throw new Error(`selftest: vectors file lost its armed set (count=${file.count})`);
 }
-console.log(`eip712 selftest green: ${a}`);
+
+const toMessage = (v: Vector): PickMessage => ({
+  player: v.pick.player,
+  marketId: BigInt(v.pick.marketId),
+  optionIndex: v.pick.optionIndex,
+  stake: v.pick.stake,
+  nonce: v.pick.nonce,
+  utcDay: v.pick.utcDay,
+  stakedSoFarInDay: v.pick.stakedSoFarInDay,
+});
+const toDomain = (v: Vector): PickDomain => ({
+  chainId: v.chainId,
+  verifyingContract: v.verifyingContract,
+});
+
+for (const v of file.vectors) {
+  const derived = hashPick(toDomain(v), toMessage(v));
+  if (derived !== v.digest) {
+    throw new Error(`selftest: digest mismatch on vector "${v.name}": derived ${derived}, recorded ${v.digest}`);
+  }
+}
+
+// Mutation check on the representative vector, selected by name — position-coupling to the
+// generator's ordering would turn a reorder into overflow noise on the +1 perturbations.
+// Perturbing any single field — message or domain — must change the hash, or two different
+// Picks could share a leaf.
+const base = file.vectors.find((v) => v.name === "representative");
+if (!base) throw new Error("selftest: representative vector missing from fixture");
+const domain = toDomain(base);
+const pick = toMessage(base);
+const anchor = hashPick(domain, pick);
+
+const messageMutations: PickMessage[] = [
+  { ...pick, player: "0x000000000000000000000000000000000000dEaD" },
+  { ...pick, marketId: pick.marketId + 1n },
+  { ...pick, optionIndex: pick.optionIndex + 1 },
+  { ...pick, stake: pick.stake + 1 },
+  { ...pick, nonce: pick.nonce + 1 },
+  { ...pick, utcDay: pick.utcDay + 1 },
+  { ...pick, stakedSoFarInDay: pick.stakedSoFarInDay + 1 },
+];
+for (const m of messageMutations) {
+  if (hashPick(domain, m) === anchor) {
+    throw new Error(`selftest: mutation did not change hash: ${JSON.stringify(m, (_, v) => (typeof v === "bigint" ? v.toString() : v))}`);
+  }
+}
+const domainMutations: PickDomain[] = [
+  { ...domain, chainId: domain.chainId + 1 },
+  { ...domain, verifyingContract: "0x000000000000000000000000000000000000dEaD" },
+];
+for (const d of domainMutations) {
+  if (hashPick(d, pick) === anchor) {
+    throw new Error(`selftest: domain mutation did not change hash: ${JSON.stringify(d)}`);
+  }
+}
+
+console.log(`eip712 selftest green: ${file.count} vectors re-derived, ${messageMutations.length + domainMutations.length} mutations all moved the digest`);

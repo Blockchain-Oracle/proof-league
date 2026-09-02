@@ -17,6 +17,7 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@proof-league/chain": "workspace:*",
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"

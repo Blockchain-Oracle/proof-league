@@ -1,0 +1,68 @@
+{
+  "description": "EIP-712 Pick conformance vectors: digests computed by packages/shared hashPick (viem); contracts/test re-derives each via LeagueCore.hashPickLeaf. Regenerate with eip712-vectors.gen.ts.",
+  "domainName": "ProofLeague",
+  "domainVersion": "1",
+  "count": 4,
+  "vectors": [
+    {
+      "name": "representative",
+      "chainId": 102031,
+      "verifyingContract": "0x8334889B9c068e57078Da3376087ee2b7A7fd42B",
+      "pick": {
+        "player": "0xC8D9da124DCB6759da625461AA96BB74abbEF02b",
+        "marketId": "7",
+        "optionIndex": 2,
+        "stake": 40,
+        "nonce": 3,
+        "utcDay": 20699,
+        "stakedSoFarInDay": 60
+      },
+      "digest": "0x5c1aa3e0d500ec7dc8d31e2d5a439cdb26651ffae06aeb67355b46a840a35bc3"
+    },
+    {
+      "name": "type-ceilings",
+      "chainId": 102031,
+      "verifyingContract": "0x8334889B9c068e57078Da3376087ee2b7A7fd42B",
+      "pick": {
+        "player": "0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+        "marketId": "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        "optionIndex": 255,
+        "stake": 65535,
+        "nonce": 4294967295,
+        "utcDay": 4294967295,
+        "stakedSoFarInDay": 65535
+      },
+      "digest": "0xb87bf6665ebdb38bbc28c79b72c846bb7f798b7db4cb13abb8408afeb611b3f8"
+    },
+    {
+      "name": "zero-stake-tombstone",
+      "chainId": 102031,
+      "verifyingContract": "0x8334889B9c068e57078Da3376087ee2b7A7fd42B",
+      "pick": {
+        "player": "0xC8D9da124DCB6759da625461AA96BB74abbEF02b",
+        "marketId": "7",
+        "optionIndex": 2,
+        "stake": 0,
+        "nonce": 4,
+        "utcDay": 20699,
+        "stakedSoFarInDay": 60
+      },
+      "digest": "0x91c09773eb58dda017d5f71cbd53c5f5d4bd7fd9e1bcbdb84dee06af9c49aadb"
+    },
+    {
+      "name": "domain-separation",
+      "chainId": 31337,
+      "verifyingContract": "0x00000000000000000000000000000000DeaDBeef",
+      "pick": {
+        "player": "0xC8D9da124DCB6759da625461AA96BB74abbEF02b",
+        "marketId": "7",
+        "optionIndex": 2,
+        "stake": 40,
+        "nonce": 3,
+        "utcDay": 20699,
+        "stakedSoFarInDay": 60
+      },
+      "digest": "0xa421df6122beb86a0dbcf8ced12db869995b89c46ca698ae5f0e896896921509"
+    }
+  ]
+}
