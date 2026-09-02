@@ -9,6 +9,11 @@ solc_version = "0.8.28"
 evm_version = "paris"
 optimizer = true
 optimizer_runs = 200
+# Required by the vendored @gluwa/usc-contracts EvmV1Decoder (Story 2.3): its nested
+# receipt abi.decode is stack-too-deep on the legacy pipeline in ANY consumer. via_ir is
+# part of the standard-JSON verification metadata, so Blockscout verification carries it;
+# the spike-confirmed evm_version/solc pins above are unchanged.
+via_ir = true
 # forge-std ships code under src/; the explicit remapping keeps the canonical
 # "forge-std/Test.sol" import path (auto-remap would point at the package root).
 remappings = ["forge-std/=node_modules/forge-std/src/"]
