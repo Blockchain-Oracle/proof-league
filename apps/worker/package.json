@@ -9,8 +9,10 @@
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
+    "@gluwa/usc-sdk": "0.18.0",
     "@proof-league/chain": "workspace:*",
     "@proof-league/shared": "workspace:*",
+    "ethers": "^6.17.0",
     "viem": "^2.56.3",
     "zod": "^4.1.0"
   },
