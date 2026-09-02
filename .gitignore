@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+.next/
+out/
+dist/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+*.tsbuildinfo
+
+# env and secrets — keys never enter git (CONVENTIONS §9: platform stores only)
+.env
+.env.*
+!.env.example
+
+# local tooling noise
+.DS_Store
+*.log
+.vercel
+.turbo

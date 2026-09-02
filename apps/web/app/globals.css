@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+/* Dark variant keys off data-theme, never media queries alone, so the persisted user choice wins
+   (REFERENCE-DESIGN §3; syntax verified against Tailwind v4 docs 2026-09-02). */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Source-exact token seed from REFERENCE-DESIGN §2. Story 3.1 completes the full layer
+   (grain, crop ticks, ticker, editorial grammar); values here are the verified Yosuku ramps. */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-rule: var(--rule);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-waiting: var(--waiting);
+  --color-recorded: var(--recorded);
+  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-data: var(--font-jetbrains-mono), ui-monospace, monospace;
+  --font-editorial: var(--font-noto-serif-jp), ui-serif, serif;
+}
+
+/* Light is the bare default: theme-specific semantic colors are never flattened into one
+   palette, because Yosuku deliberately darkens vermilion/UP/DOWN on cream for contrast. */
+:root {
+  --canvas: #f4eee3;
+  --surface: #fbf7ee;
+  --surface-strong: #f6f0e4;
+  --ink: #141210;
+  --ink-muted: #5e574b;
+  --rule: rgba(20, 18, 16, 0.11);
+  --brand: #d93e1f;
+  --brand-deep: #b83214;
+  --up: #2e6b4f;
+  --down: #c2381f;
+  --waiting: #d69a3a;
+  --recorded: #817a72;
+}
+
+[data-theme="dark"] {
+  --canvas: #050505;
+  --surface: #0c0c0c;
+  --surface-strong: #171717;
+  --ink: #ffffff;
+  --ink-muted: #a3a3a3;
+  --rule: rgba(255, 255, 255, 0.06);
+  --brand: #e04d26;
+  --brand-deep: #b83a1b;
+  --up: #34d399;
+  --down: #fb7185;
+  --waiting: #d69a3a;
+  --recorded: #8f8a82;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-body);
+  margin: 0;
+}

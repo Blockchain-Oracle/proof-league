@@ -1,0 +1,12 @@
+{
+  "name": "@proof-league/contracts",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "build": "forge build"
+  },
+  "dependencies": {
+    "@gluwa/usc-contracts": "0.2.0",
+    "@openzeppelin/contracts": "5.1.0"
+  }
+}

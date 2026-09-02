@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+  - contracts
+# esbuild's postinstall fetches its platform binary; tsx (selftest runner) needs it.
+allowBuilds:
+  esbuild: true
+minimumReleaseAgeExclude:
+  - viem@2.56.3

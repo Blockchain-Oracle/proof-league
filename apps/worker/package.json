@@ -1,0 +1,22 @@
+{
+  "name": "@proof-league/worker",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@proof-league/chain": "workspace:*",
+    "@proof-league/shared": "workspace:*",
+    "viem": "^2.56.3",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

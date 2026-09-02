@@ -1,0 +1,32 @@
+{
+  "name": "proof-league",
+  "private": true,
+  "version": "0.0.1",
+  "license": "MIT",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "check": "pnpm check:lint && pnpm check:rawlines && pnpm check:types && pnpm check:secrets && pnpm check:overclaim",
+    "check:lint": "eslint apps packages --max-warnings 0",
+    "check:rawlines": "node scripts/raw-lines-sweep.mjs",
+    "check:types": "pnpm -r --filter './apps/*' --filter './packages/*' run typecheck",
+    "check:secrets": "node scripts/secret-scan.mjs",
+    "check:overclaim": "node scripts/overclaim-scan.mjs",
+    "build": "pnpm -r --filter './apps/*' --filter './packages/*' run build",
+    "rebuild": "node scripts/rebuild-stub.mjs",
+    "verify:commit": "node scripts/verify-stub.mjs commit",
+    "verify:void": "node scripts/verify-stub.mjs void",
+    "verify:settlement": "node scripts/verify-stub.mjs settlement",
+    "verify:payout": "node scripts/verify-stub.mjs payout",
+    "verify:hosted-round": "node scripts/verify-stub.mjs hosted-round"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react": "^7.37.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.46.0"
+  }
+}
