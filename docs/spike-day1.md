@@ -11,17 +11,37 @@ assumption. Placeholders in planning documents are superseded by the figures her
   - worker3 `0xcc79Ffb5a93a62C4CdD90d8C5016cDFa6134f392`
 - Escrow account `0xC1396D0bEF413959A759b3b1b43013CF3f124757` — key written to
   `.env.escrow.offline` for transfer to the owner's password manager; never loaded by services.
-- **PENDING (owner):** faucet CTC to the three worker accounts; on-chain balances recorded here
-  once funded.
+  Owner decision 2026-09-02: the file stays local for now — `git check-ignore` confirms the
+  `.env.*` rule covers it (testnet value only; the password-manager transfer remains on Abu).
+- **FUNDED 2026-09-02 (owner, Discord `/faucet`):** on-chain balances verified via
+  `cast balance` against `rpc.cc3-testnet.creditcoin.network` at 19:31 UTC —
+  worker1/worker2/worker3/escrow each hold **10,000 CTC**.
+- **Research correction (measured beats researched):** the Aug-22 recon recorded the faucet at
+  100 CTC/24h (~9 proof queries/day/account). The live faucet dispensed 10,000 CTC per address.
+  Funding drops from top schedule risk to routine; the AD-7 budget ledger stays (proof units and
+  gas are still metered), but the "9 queries/day" ceiling in planning docs is superseded.
 - Fly payment method / Supabase project: deliberately deferred (owner decision 2026-09-02);
   wired when the first slice needs them.
 
-## Gate 2 — hello-bridge attestation wall-clock and recency floor
+## Gate 2 — hello-bridge attestation wall-clock and recency floor: **MEASURED**
 
-- **PENDING funded account** for the full end-to-end measurement.
 - Read-only bound recorded 2026-09-02 18:21 UTC: latest attested Sepolia height trailed the live
   Sepolia head by 34 blocks (~408 s at 12 s blocks). This is a freshness bound, NOT the FR-12
-  wall-clock figure; UI copy keeps using "unmeasured" until hello-bridge runs.
+  wall-clock figure.
+- Full measurement run 2026-09-02 19:34–19:43 UTC (`spike/attestation-clock.ts` — marks a fresh
+  head block on each source chain, polls CC3 `latestAttested` until it covers that block):
+
+  | chain   | watched block | start lag | wall-clock to coverage | event age at first provability |
+  |---------|---------------|-----------|------------------------|--------------------------------|
+  | sepolia | 11,621,650    | 40 blocks | 7.0 min                | **7.3 min**                    |
+  | mainnet | 25,891,734    | 44 blocks | 8.4 min                | **8.5 min**                    |
+
+- **The FR-12 attestation-lag figure is ~7–9 min** (event age at first provability). This is the
+  number product copy and the resolution scheduler build on: a source-chain event becomes provable
+  on CC3 roughly 7–9 minutes after it happens. Matches the recon estimate (~8–10 min) from the
+  favorable end.
+- The ~15 s proof-verification leg is deliberately NOT claimed here — it gets measured when the
+  first real verify lands (Story 2.3).
 
 ## Gate 3 — Mainnet-Read Gate probe: **OPEN**
 
@@ -60,10 +80,18 @@ mainnet latestAttested=25891330 (attestations flowing)
   stays: does the embedded wallet sign the EIP-712 Pick without a visible prompt. Fallback
   branch (passkey-first) remains pre-decided.
 
-## Gate 6 — EVM target for Blockscout verification
+## Gate 6 — EVM target for Blockscout verification: **paris CONFIRMED**
 
-- **PENDING funded account.** `contracts/src/SpikeProbe.sol` is ready to deploy; on success the
-  verifying `evm_version` replaces the provisional `paris` in `foundry.toml` same-day.
+- Deployed 2026-09-02 19:32 UTC by worker1: `SpikeProbe` at
+  `0x8334889B9c068e57078Da3376087ee2b7A7fd42B`, tx
+  `0x1d02d14ac040381ac02a6a827fe60e516fe897cd27e3fc2ea6f96a4c9bff89e0`.
+- `forge verify-contract` against `creditcoin-testnet.blockscout.com` with the pinned profile
+  (solc 0.8.28, `evm_version = paris`, optimizer 200): **"Pass - Verified"**. The provisional
+  pin in `foundry.toml` is now confirmed evidence (comment updated same-day).
+- Client quirk worth knowing before the worker ships: CC3's RPC omits `mixHash` from block
+  JSON; alloy (forge's provider) logs deserialization errors while still succeeding. ethers v6
+  (the worker's RPC lib) tolerated all reads in this spike, but treat block-shape strictness as
+  a known hazard when adding new client code.
 
 ## Toolchain confirmation (kickoff re-check, supersedes stale planning pins)
 

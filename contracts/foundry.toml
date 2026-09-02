@@ -1,5 +1,6 @@
-# solc 0.8.28 exact (spine Stack table). evm_version is PROVISIONAL until day-1 spike gate 6
-# confirms which target verifies on creditcoin-testnet.blockscout.com — pinned same-day.
+# solc 0.8.28 exact (spine Stack table). evm_version paris CONFIRMED by spike gate 6
+# 2026-09-02: SpikeProbe 0x8334889B9c068e57078Da3376087ee2b7A7fd42B "Pass - Verified" on
+# creditcoin-testnet.blockscout.com with this exact profile.
 [profile.default]
 src = "src"
 out = "out"
