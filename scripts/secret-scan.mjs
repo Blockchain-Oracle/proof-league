@@ -10,7 +10,9 @@ const PATTERNS = [
   { rx: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/ },
   { rx: /gh[pos]_[A-Za-z0-9]{30,}/ },           // GitHub tokens
 ];
-const files = execSync("git ls-files", { encoding: "utf8" }).split("\n").filter(Boolean);
+// --others --exclude-standard: untracked files scan too, or a new file passes locally
+// and reddens CI on its first push (watched happen, Story 2.3 [review 2026-09-02]).
+const files = execSync("git ls-files --cached --others --exclude-standard", { encoding: "utf8" }).split("\n").filter(Boolean);
 const hits = [];
 for (const f of files) {
   let text = ""; try { text = readFileSync(f, "utf8"); } catch { continue; }

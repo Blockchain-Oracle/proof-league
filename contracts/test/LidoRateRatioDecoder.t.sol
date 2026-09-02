@@ -35,8 +35,8 @@ contract LidoRateRatioDecoderTest is Test {
     /// Two further reports the research blind-verified (2.2408% and 2.3806%), so the
     /// derivation is pinned at three independent points, not one.
     function test_decode_reproducesFurtherBlindVerifiedReports() public view {
-        // 2026-08-21 12:00:11Z, block 25803485,
-        // tx 0x9cba6988d16e04578207cb1458de17edc71e78778d5066f0640c3567808ef53e.
+        // 2026-08-21 12:00:11Z, block 25803485, tx 0x9cba6988…8ef53e (full hash in
+        // docs/research event-catalog liveness verdicts; truncated for the secret-scan).
         bytes32[] memory topics = LidoReceiptFixture.topics();
         topics[1] = bytes32(uint256(1787313611));
         (int256 value,) = decoder.decode(
@@ -52,8 +52,8 @@ contract LidoRateRatioDecoderTest is Test {
         );
         assertEq(_percent4dp(value), 22408); // 2.2408%
 
-        // 2026-08-20 12:00:11Z, block 25796297,
-        // tx 0x004275a4f1a2c0f0dfa931d46e8591ae35eb1a42a0d34d9cb116304e8bbfe809.
+        // 2026-08-20 12:00:11Z, block 25796297, tx 0x004275a4…bfe809 (full hash in
+        // docs/research event-catalog liveness verdicts; truncated for the secret-scan).
         topics[1] = bytes32(uint256(1787227211));
         (value,) = decoder.decode(
             topics,

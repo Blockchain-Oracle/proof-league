@@ -4,15 +4,19 @@ pragma solidity 0.8.28;
 import {EvmV1Decoder} from "@gluwa/usc-contracts/contracts/write-ability/common/EvmV1Decoder.sol";
 
 /// The blind-verified reference receipt (FR-13): Lido's 2026-08-22 12:00:11 UTC rebase
-/// report, tx 0x50c4ee805902fd3bf9fa0dbd4aa0f0c818e35a758cfc86ab4d8b3e29869efe68 at
-/// Ethereum mainnet block 25810661. Raw words fetched from ethereum-rpc.publicnode.com
-/// on 2026-09-02; the 2.3785% APR target was derived independently in the event-catalog
-/// research (2026-08-22, liveness verdicts) before this decoder existed — reproducing it
-/// from these raw fields is the conformance claim, not a self-check.
+/// report, tx 0x50c4ee80…9efe68 (full hash in docs/research event-catalog liveness
+/// verdicts; truncated here because the secret-scan key pattern cannot tell a 32-byte
+/// hash from a key outside docs/) at Ethereum mainnet block 25810661. Raw words fetched
+/// from ethereum-rpc.publicnode.com on 2026-09-02; the 2.3785% APR target was derived
+/// independently in the event-catalog research (2026-08-22) before this decoder
+/// existed — reproducing it from these raw fields is the conformance claim, not a
+/// self-check.
 library LidoReceiptFixture {
     address internal constant STETH = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
+    // keccak-derived, not a hex literal: self-documents the event shape and was verified
+    // byte-identical to the on-chain topic0 in the research (0xff08c3ef…, docs/research).
     bytes32 internal constant TOKEN_REBASED_SIG =
-        0xff08c3ef606d198e316ef5b822193c489965899eb4e3c248cea1a4626c3eda50;
+        keccak256("TokenRebased(uint256,uint256,uint256,uint256,uint256,uint256,uint256)");
 
     uint64 internal constant SOURCE_HEIGHT = 25810661;
     // 2026-08-22T12:00:11Z — the indexed reportTimestamp topic, check 6's occurredAt.
