@@ -1,4 +1,4 @@
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { creditCoin3Testnet } from "@proof-league/chain";
 import { PICK_DOMAIN_NAME, PICK_DOMAIN_VERSION, PICK_TYPES, utcDayOf } from "@proof-league/shared";
 
@@ -17,8 +17,12 @@ import { PICK_DOMAIN_NAME, PICK_DOMAIN_VERSION, PICK_TYPES, utcDayOf } from "@pr
 const BASE = process.env.INTAKE_PROBE_BASE ?? "http://127.0.0.1:3210";
 // The deployed LeagueCore, which is the EIP-712 verifying contract (docs/launch-lineup.md).
 const CORE = "0xFe8C5438781f8c8392a49e20502920Ba41027493" as const;
-// A throwaway signer: it signs drafts, holds nothing, and is not a worker key.
-const account = privateKeyToAccount("0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d");
+// A throwaway signer, GENERATED per run: it signs drafts, holds nothing and is not a
+// worker key. Generated rather than a well-known test key because a raw private key is
+// regex-identical to a transaction hash, so a literal one here trips the secret scan by
+// design (CONVENTIONS section 8) and there is no exemption worth carving for a probe. A
+// fresh player per run also means the accept path starts from an empty draft state.
+const account = privateKeyToAccount(generatePrivateKey());
 
 type Pick = {
   readonly marketId: string;
