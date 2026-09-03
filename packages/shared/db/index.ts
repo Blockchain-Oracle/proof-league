@@ -4,6 +4,9 @@ import * as schema from "./schema.js";
 
 export * from "./schema.js";
 export * from "./picks.js";
+// The sanctioned query operators, re-exported so consumers never grow their own
+// drizzle-orm dependency (one pinned version, owned here with the schema — §4).
+export { and, eq } from "drizzle-orm";
 
 export type Db = ReturnType<typeof createDb>["db"];
 

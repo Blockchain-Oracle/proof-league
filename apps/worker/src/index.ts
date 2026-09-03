@@ -5,6 +5,8 @@ import { cc3Clients, readWorkerAccounts, readWorkerKey } from "./cc3.js";
 import { startLoop } from "./loop.js";
 import { startHealthServer } from "./health.js";
 import { runCommitRound } from "./commit-round.js";
+import { runScoringRound } from "./scoring-round.js";
+import { runProjectorRound } from "./projector-round.js";
 import { runVoidRound } from "./void-round.js";
 import { runSeasonRound } from "./season-round.js";
 import { runSettlementRound } from "./pipeline/settlement-round.js";
@@ -48,7 +50,8 @@ if (gateway === undefined) {
     database !== undefined
       ? new PostgresTransparencyProjection(database.db, store.dir)
       : new FileTransparencyProjection(store.dir);
-  const publisher = new PickSetPublisher(readPicksetPublisherConfig(process.env, store.dir));
+  const publisherConfig = readPicksetPublisherConfig(process.env, store.dir);
+  const publisher = new PickSetPublisher(publisherConfig);
   logger.info(
     `[worker] transparency projection: ${database !== undefined ? "postgres" : "jsonl file"}; pickset storage: ${publisher.storageConfigured ? "supabase+mirror" : "mirror only"}`,
   );
@@ -88,6 +91,16 @@ if (gateway === undefined) {
       logger.error({ err: error }, "[worker] settlement round failed");
     }
     try {
+      // Story 2.9's scoring duty: scoreBatch is permissionless but somebody must feed
+      // it — Resolved markets walk to fully-scored from the published set.
+      const scoring = await runScoringRound(core, clients, publisherConfig.mirrorDir);
+      if (scoring.completed.length > 0) {
+        logger.info(`[worker] fully scored markets: ${scoring.completed.join(", ")}`);
+      }
+    } catch (error) {
+      logger.error({ err: error }, "[worker] scoring round failed");
+    }
+    try {
       // Story 2.6: the AD-19 void duty — also the unblocker the season's all-terminal
       // gate leans on.
       const voids = await runVoidRound(core, clients);
@@ -104,6 +117,21 @@ if (gateway === undefined) {
       }
     } catch (error) {
       logger.error({ err: error }, "[worker] season round failed");
+    }
+    if (database !== undefined) {
+      try {
+        // Story 2.9's projector, LAST so it sees this round's own chain writes: class-1
+        // rows from chain views + published pick-sets, one Postgres tx per scoring tx.
+        await runProjectorRound({
+          core,
+          clients,
+          db: database.db,
+          mirrorDir: publisherConfig.mirrorDir,
+          cursor: store.projectorOf(core.toLowerCase()),
+        });
+      } catch (error) {
+        logger.error({ err: error }, "[worker] projector round failed");
+      }
     }
     store.save();
   });

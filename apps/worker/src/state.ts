@@ -58,6 +58,15 @@ export type SeasonCursor = {
   playerScanFromBlock?: number;
 };
 
+// Story 2.9's class-2 half: where the projector's chain reads have reached. markets maps
+// marketId -> the state already projected ("final" once nothing about the market can ever
+// change again), so settled seasons stop costing reads; scanFromBlock is the scoring-log
+// cursor. Losing this file only costs re-reads — every projected row is idempotent.
+export type ProjectorCursor = {
+  markets: Record<string, "Created" | "Committed" | "Resolved" | "Voided" | "final">;
+  scanFromBlock?: number;
+};
+
 export type WorkerState = {
   cursors: Record<string, SourceKeyCursor>; // keyed by sourceKey
   // marketId -> sourceKey once cursored, or "terminal" once Resolved/Voided pre-cursor —
@@ -69,6 +78,7 @@ export type WorkerState = {
   };
   alertsSentAtMs: Record<string, number>; // alert-key -> last webhook send (dedupe)
   seasons: Record<string, SeasonCursor>; // keyed by core address: verify:payout runs test seasons
+  projectors: Record<string, ProjectorCursor>; // keyed by core address (Story 2.9)
 };
 
 const emptyState = (): WorkerState => ({
@@ -77,6 +87,7 @@ const emptyState = (): WorkerState => ({
   ledger: { proofUnits: 0, gasWeiByDay: {} },
   alertsSentAtMs: {},
   seasons: {},
+  projectors: {},
 });
 
 /// Loads at construction, mutates in memory, and persists via write-temp-then-rename so a
@@ -108,6 +119,14 @@ export class StateStore {
     if (existing) return existing;
     const fresh: SeasonCursor = { stage: "watching", players: [] };
     this.state.seasons[core] = fresh;
+    return fresh;
+  }
+
+  projectorOf(core: string): ProjectorCursor {
+    const existing = this.state.projectors[core];
+    if (existing) return existing;
+    const fresh: ProjectorCursor = { markets: {} };
+    this.state.projectors[core] = fresh;
     return fresh;
   }
 }

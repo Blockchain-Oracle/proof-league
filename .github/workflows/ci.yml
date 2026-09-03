@@ -25,6 +25,9 @@ jobs:
       - run: git diff --exit-code packages/shared/src/pickset-vectors.json
       - run: pnpm check
       - run: pnpm build
+      # AD-8's rebuild gate (Story 2.9): with no deployment configured it runs the diff
+      # engine hermetically and proves a mutation goes red; Story 5.4 arms live mode.
+      - run: pnpm rebuild
   contracts:
     runs-on: ubuntu-latest
     steps:
