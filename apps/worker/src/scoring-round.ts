@@ -92,7 +92,12 @@ export const runScoringRound = async (
           account: walletClient.account,
         });
         const hash = await walletClient.writeContract(request);
-        await publicClient.waitForTransactionReceipt({ hash });
+        // A reverted batch RESOLVES rather than throwing; without this the loop would
+        // re-read the same cursor and report progress that never happened.
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") {
+          throw new Error(`scoreBatch tx ${hash} reverted (status=${receipt.status})`);
+        }
         const span = batch.length === 0 ? "the empty-set opening" : `leaves ${start}..${start + batch.length - 1}`;
         logger.info(`[worker] market ${marketId}: scored ${span} tx=${hash}`);
       }

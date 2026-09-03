@@ -69,6 +69,10 @@ export const sortPicksCanonical = <T extends SignedPick>(picks: readonly T[]): T
   return sorted;
 };
 
+/// Built documents are validated with the SAME schema the reader enforces. The writer
+/// bounded nothing, so a field wider than its EIP-712 type could in principle be written
+/// and then be permanently unparseable by every reader — an unrecoverable market. The
+/// signing path makes that unreachable today; this makes it unrepresentable.
 export const buildPickSetDocument = (
   domain: PickDomain,
   marketId: bigint,
@@ -79,7 +83,7 @@ export const buildPickSetDocument = (
       throw new Error(`pickset: pick for market ${pick.marketId} in the set for ${marketId}`);
     }
   }
-  return {
+  const doc = {
     version: PICKSET_DOCUMENT_VERSION,
     chainId: domain.chainId,
     verifyingContract: domain.verifyingContract.toLowerCase(),
@@ -96,6 +100,7 @@ export const buildPickSetDocument = (
       signature: pick.signature.toLowerCase(),
     })),
   };
+  return documentSchema.parse(doc) as PickSetDocument;
 };
 
 /// Deterministic bytes: the literal below fixes the key order regardless of what object

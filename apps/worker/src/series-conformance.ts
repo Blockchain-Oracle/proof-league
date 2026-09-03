@@ -18,6 +18,10 @@ type StoredMarket = {
   readonly boundaries: readonly string[];
 };
 
+// Mirrors LeagueSeries.sol's ANCHOR_BOUND: past this magnitude the contract refuses to
+// anchor and uses the template's base boundaries instead.
+const ANCHOR_BOUND = 1n << 128n;
+
 export const verifySeriesConformance = async (
   publicClient: PublicClient<Transport, Chain>,
   core: Address,
@@ -66,7 +70,14 @@ export const verifySeriesConformance = async (
         for (const prior of window) {
           const value = resolutionValues[prior.marketId.toString()];
           if (value === undefined) continue; // voided (or otherwise valueless): look further back
-          expectedBoundaries = template.anchorOffsets.map((offset) => (BigInt(value) + offset).toString());
+          // The contract abandons the anchored path entirely for an absurd anchor and
+          // falls back to base (LeagueSeries.sol's ANCHOR_BOUND break). Omitting that
+          // here would make this recompute disagree with a correctly-derived instance
+          // and wedge the gate red — an independent implementation has to mirror the
+          // rule, not just the happy path.
+          const anchor = BigInt(value);
+          if (anchor >= ANCHOR_BOUND || anchor <= -ANCHOR_BOUND) break;
+          expectedBoundaries = template.anchorOffsets.map((offset) => (anchor + offset).toString());
           break;
         }
       }

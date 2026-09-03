@@ -7,6 +7,7 @@ import {
   buildPickSetDocument,
   compareStandings,
   CONTRACT_MARKET_STATES,
+  skipReasonOf,
   PICK_DOMAIN_NAME,
   PICK_DOMAIN_VERSION,
   PICK_POINTS_DAILY,
@@ -40,8 +41,6 @@ const fail = (message: string): never => {
   log.error(`rebuild: ${message}`);
   process.exit(1);
 };
-
-const SKIP_REASONS = ["OutOfOrder", "Superseded", "Tombstone", "ForeignMarket", "OverBudget"] as const;
 
 /// The chain-side reconstruction: everything class-1, from public reads only.
 const reconstruct = async (core: Address, mirrorDir: string, fromBlock: bigint): Promise<TruthTables> => {
@@ -157,7 +156,7 @@ const reconstruct = async (core: Address, mirrorDir: string, fromBlock: bigint):
     players.add(player);
     truth.scores[`${logEntry.args.marketId}:${logEntry.args.leafIndex}`] = {
       player,
-      outcome: SKIP_REASONS[logEntry.args.reason] ?? "ForeignMarket",
+      outcome: skipReasonOf(logEntry.args.reason),
       correct: null,
       pointsAwarded: null,
       utcDay: null,

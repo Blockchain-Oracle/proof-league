@@ -103,7 +103,15 @@ export const runCommitRound = async (ctx: CommitContext): Promise<CommitRoundRep
         account: walletClient.account,
       });
       const hash = await walletClient.writeContract(request);
-      await publicClient.waitForTransactionReceipt({ hash });
+      // viem RESOLVES on a reverted transaction rather than throwing, so the status has
+      // to be read. The window can close between simulate and mine (it is a chain-clock
+      // race, not a hypothetical), and without this check a reverted commit would be
+      // logged as committed and written to the transparency log as proven — a permanent
+      // row asserting something that did not happen.
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") {
+        throw new Error(`commitPicks tx ${hash} reverted (status=${receipt.status})`);
+      }
       committed.push(marketId);
       logger.info(
         `[worker] market ${marketId}: committed ${valid.length} pick(s) root=${root} uri=${published.uri} tx=${hash}`,

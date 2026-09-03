@@ -1,6 +1,6 @@
 import type { Address, Hex } from "viem";
 import { leagueCoreAbi } from "@proof-league/chain";
-import { compareStandings, CONTRACT_MARKET_STATES, type PickDomain } from "@proof-league/shared";
+import { compareStandings, CONTRACT_MARKET_STATES, skipReasonOf, type ContractSkipReason, type PickDomain } from "@proof-league/shared";
 import {
   and,
   committedPicks,
@@ -9,6 +9,7 @@ import {
   resolutions,
   scores,
   seasonStandings,
+  sql,
   type Db,
 } from "@proof-league/shared/db";
 import { logger } from "./logger.js";
@@ -23,8 +24,6 @@ import { loadPickSet } from "./pickset/load.js";
 // each player-scored outcome is exactly one insert into `scores` — which IS the one
 // realtime event (the table rides the supabase_realtime publication). Everything here is
 // idempotent: the cursor only saves re-reads, never correctness.
-
-const SKIP_REASONS = ["OutOfOrder", "Superseded", "Tombstone", "ForeignMarket", "OverBudget"] as const;
 
 export type ProjectorContext = {
   readonly core: Address;
@@ -50,7 +49,7 @@ type ScoreEvent = {
   readonly marketId: bigint;
   readonly leafIndex: number;
   readonly player: Address;
-  readonly outcome: (typeof SKIP_REASONS)[number] | "scored";
+  readonly outcome: ContractSkipReason | "scored";
   readonly correct?: boolean;
   readonly pointsAwarded?: bigint;
   readonly utcDay?: number;
@@ -144,9 +143,16 @@ const projectMarkets = async (ctx: ProjectorContext, domain: PickDomain): Promis
           })
           .where(and(eq(markets.core, coreKey), eq(markets.marketId, key)));
       } catch (error) {
-        // A market voided from Created has no commitment — the honest non-row. Any other
-        // failure (unreachable pick-set) retries next round because the cursor won't move.
-        if (!String(error).includes("NotCommitted")) throw error;
+        // A market voided from Created has no commitment — the honest non-row.
+        if (!String(error).includes("NotCommitted")) {
+          // An unreachable pick-set is ONE market's problem. Rethrowing here aborted the
+          // whole round before projectScores ever ran, which silently froze the scores
+          // feed and the leaderboard for every market — a local outage turned into a
+          // total one. Log it, leave this market's cursor unmoved so it retries, and let
+          // the rest of the round proceed.
+          logger.error({ err: error }, `[worker] projector: market ${key} pick-set unavailable, leaving it for the next round`);
+          continue;
+        }
       }
     }
 
@@ -218,7 +224,14 @@ const applyScoringTx = async (ctx: ProjectorContext, txHash: Hex, events: readon
           txHash,
         })),
       )
-      .onConflictDoNothing();
+      // Upsert, not ignore: if a leaf is ever re-observed under a different transaction
+      // (a reorg replaying it into new canonical blocks), the row must be able to correct
+      // itself. Ignoring the conflict would freeze the first reading in place forever,
+      // and only an out-of-loop rebuild would ever notice the stale txHash.
+      .onConflictDoUpdate({
+        target: [scores.core, scores.marketId, scores.leafIndex],
+        set: { outcome: sql`excluded.outcome`, correct: sql`excluded.correct`, pointsAwarded: sql`excluded.points_awarded`, utcDay: sql`excluded.utc_day`, txHash: sql`excluded.tx_hash` },
+      });
     for (const standing of standings) {
       await tx
         .insert(seasonStandings)
@@ -287,7 +300,7 @@ const projectScores = async (ctx: ProjectorContext): Promise<{ events: number; t
       marketId: log.args.marketId,
       leafIndex: Number(log.args.leafIndex),
       player: log.args.player,
-      outcome: SKIP_REASONS[log.args.reason] ?? ("ForeignMarket" as const),
+      outcome: skipReasonOf(log.args.reason),
     })),
   ].sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex);
 
