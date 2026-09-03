@@ -8,7 +8,8 @@ import {
   type IntakeCandidate,
   type IntakeRefusal,
 } from "@proof-league/shared";
-import { and, eq, insertPendingPick, listPlayerDrafts, markets } from "@proof-league/shared/db";
+import { and, eq, insertPendingPick, listPlayerDrafts, markets, pendingPicks } from "@proof-league/shared/db";
+import { chainClock } from "../../../lib/chain-clock.js";
 import { deployedCore, projectionDb } from "../../../lib/market-data.js";
 
 // Pick intake (Story 3.3, AD-2/AD-5/AD-14). A Pick is a signed EIP-712 message; this
@@ -123,8 +124,57 @@ export async function POST(request: Request): Promise<Response> {
     return problem(404, "market-unknown", "No such Market on this league.", "Open the Markets board.");
   }
 
+  // A RETRY IS NOT A REFUSAL. A client whose request timed out does not know whether its
+  // Pick landed, and PRODUCT-FLOWS section 16 requires confirmation-unknown to be
+  // separated from refusal. Resending the identical Pick must therefore report the Pick
+  // as already held, not "that number is stale" from the nonce rule below. The same
+  // lookup catches the opposite case: the same nonce carrying DIFFERENT values, which is
+  // two devices racing toward an ambiguous committed set and has to be refused by name.
+  const [existing] = await db
+    .select()
+    .from(pendingPicks)
+    .where(
+      and(
+        eq(pendingPicks.verifyingContract, scoped),
+        eq(pendingPicks.marketId, body.marketId),
+        eq(pendingPicks.player, body.player.toLowerCase()),
+        eq(pendingPicks.nonce, body.nonce),
+      ),
+    )
+    .limit(1);
+  if (existing !== undefined) {
+    const identical =
+      existing.optionIndex === body.optionIndex &&
+      existing.stake === body.stake &&
+      existing.utcDay === body.utcDay &&
+      existing.stakedSoFarInDay === body.stakedSoFarInDay &&
+      existing.signature.toLowerCase() === body.signature.toLowerCase();
+    if (!identical) {
+      return problem(
+        409,
+        "nonce-taken",
+        "A different Pick is already signed with this number. Two Picks sharing one number could not be told apart in the committed set, so the second is refused rather than allowed to overwrite the first.",
+        "Reload the Market and sign again from the current state.",
+      );
+    }
+    const drafts = await listPlayerDrafts(db, scoped, body.player);
+    return Response.json(
+      {
+        status: "duplicate",
+        marketId: body.marketId,
+        nonce: body.nonce,
+        next: intakeState(drafts, existing.utcDay, body.marketId),
+      },
+      { status: 200 },
+    );
+  }
+
   const drafts = await listPlayerDrafts(db, scoped, body.player);
-  const nowSec = Math.floor(Date.now() / 1000);
+  // AD-10: admitted against CHAIN time, which is the clock the worker snapshots the set
+  // on. Judging the intake window by this server's clock would let a slow clock accept a
+  // Pick after the set was already taken, and the player would never learn it did not
+  // count.
+  const nowSec = (await chainClock()).chainNowSec;
   const candidate: IntakeCandidate = {
     marketId: body.marketId,
     optionIndex: body.optionIndex,
