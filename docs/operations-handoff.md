@@ -38,6 +38,15 @@ migrations applied (`pnpm --filter @proof-league/shared run db:migrate` against 
 Needs: a Supabase project on new-format keys. Then `DATABASE_URL`, `SUPABASE_URL` and
 `SUPABASE_SERVICE_KEY` go to Fly secrets, and the two `NEXT_PUBLIC_*` values to Vercel.
 
+There is a second consequence worth knowing about. Pick-set publication writes to
+`SUPABASE_URL`, so every commitment made from a laptop records a `http://127.0.0.1:54321`
+URI on-chain. That hash and those bytes are real and they verify, but only against the
+local stack, which is why publication is dual-homed: the durable public copy is the
+content-addressed file under `docs/pick-sets/` on the data branch, and `loadPickSet`
+falls back to it when the URI is unreachable. Once the hosted project exists, commitments
+made after that point carry a publicly fetchable URI. The earlier ones stay honest and
+verifiable through the mirror, and they should be pushed to the data branch.
+
 ## 3. Deploy the web app (blocks: judges seeing the product at a URL)
 
 `pnpm --filter @proof-league/web run build` passes today and the app is a normal Next

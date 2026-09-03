@@ -31,7 +31,7 @@ import { readStateDir } from "./state.js";
 // from chain events/views plus the published pick-set files — re-verifying every
 // signature, the AD-15 budget invariant, and every sha/root binding on the way — and
 // diffs the reconstruction against the projector's tables, exiting 1 on any mismatch.
-// SELF-CHECK mode (no deployment configured — CI before Story 5.4) runs the same diff
+// SELF-CHECK mode (no DATABASE_URL, which is CI's situation) runs the same diff
 // engine over synthetic truth and proves a mutation turns it red: the gate is exercised
 // on every push from day one, and can demonstrably fail. Class-2 tables are structurally
 // excluded — nothing here reads them.
@@ -285,14 +285,27 @@ const selfCheck = async (): Promise<void> => {
   if (diffTruth(expected, missing).length === 0) {
     return fail("self-check: a missing committed pick diffed CLEAN — the gate cannot go red");
   }
-  log.info("rebuild: SELF-CHECK PASS — no deployment configured; the diff engine ran hermetically,");
-  log.info("rebuild: identical truth diffs clean and mutations go red. Story 5.4 arms live mode.");
+  log.info("rebuild: SELF-CHECK PASS — the diff engine ran hermetically: identical truth diffs");
+  log.info("rebuild: clean and mutations go red. Live mode needs a projection to diff against.");
 };
 
 const main = async (): Promise<void> => {
-  // REBUILD_CORE lets verify runs point at their fresh deployments; production uses the
-  // configured gateway's own core.
-  let core = process.env.REBUILD_CORE as Address | undefined;
+  // Live mode needs BOTH halves of the comparison: a chain to reconstruct from and a
+  // projection to diff against. CI has the first and not the second, so it runs the
+  // self-check — the gate still proves on every push that it can go red. Asking for a
+  // specific core is an explicit request for live mode, so that path still refuses
+  // without a database rather than quietly downgrading what the caller asked for.
+  const requestedCore = process.env.REBUILD_CORE as Address | undefined;
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl === undefined) {
+    if (requestedCore !== undefined) {
+      return fail(`REBUILD_CORE=${requestedCore} asks for a live diff, but DATABASE_URL names no projection to diff against`);
+    }
+    log.info("rebuild: no DATABASE_URL, so there is no cache to compare — running the self-check instead.");
+    return selfCheck();
+  }
+
+  let core = requestedCore;
   if (core === undefined && DEPLOYED.proofGateway !== undefined) {
     const endpoints = readEndpoints(process.env);
     const publicClient = createPublicClient({ chain: creditCoin3Testnet, transport: http(endpoints.CC3_RPC_URL) });
@@ -300,7 +313,6 @@ const main = async (): Promise<void> => {
   }
   if (core === undefined) return selfCheck();
 
-  const databaseUrl = process.env.DATABASE_URL ?? fail("live rebuild needs DATABASE_URL — there is no cache to diff without it");
   const stateDir = readStateDir(process.env);
   const mirrorDir = readPicksetPublisherConfig(process.env, join(stateDir, "rebuild")).mirrorDir;
   const fromBlock = BigInt(process.env.REBUILD_FROM_BLOCK ?? 0);
