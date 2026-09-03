@@ -204,13 +204,13 @@ contract LeagueCoreTest is LeagueCoreTestBase {
         // AD-20 removes every post-deploy fix path, so a creator-less deployment would be
         // permanently unusable; the constructor is the only place to catch it.
         vm.expectRevert(LeagueCore.InvalidCreatorSet.selector);
-        new LeagueCore(new address[](0));
+        new LeagueCore(new address[](0), _seasonParams());
     }
 
     function test_constructor_revertsOnZeroAddressCreator() public {
         address[] memory creators = new address[](1);
         vm.expectRevert(LeagueCore.InvalidCreatorSet.selector);
-        new LeagueCore(creators);
+        new LeagueCore(creators, _seasonParams());
     }
 
     function test_createMarket_revertsOnZeroLeagueDay() public {

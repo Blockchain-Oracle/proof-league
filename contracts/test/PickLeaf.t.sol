@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {LeagueCore, Pick} from "../src/LeagueCore.sol";
+import {SeasonParams} from "../src/LeagueSeason.sol";
 
 /// Story 2.2 AC 2 — the canonical abi.encode leaf layout vs packages/shared hashPick (AD-5,
 /// ARCH8). The vectors file's digests are viem's; this suite re-derives every one from
@@ -21,7 +22,11 @@ contract PickLeafConformanceTest is Test {
     function setUp() public {
         address[] memory creators = new address[](1);
         creators[0] = address(0xA11CE);
-        league = new LeagueCore(creators);
+        league = new LeagueCore(
+            creators,
+            // forge-lint: disable-next-line(block-timestamp)
+            SeasonParams({seasonEnd: uint64(block.timestamp) + 3650 days, seasonEndDay: 100_000, escrow: address(0xE5C)})
+        );
         json = vm.readFile(VECTORS_PATH);
     }
 

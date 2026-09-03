@@ -7,6 +7,7 @@ import {
 } from "@gluwa/usc-contracts/contracts/write-ability/common/INativeQueryVerifier.sol";
 import {EvmV1Decoder} from "@gluwa/usc-contracts/contracts/write-ability/common/EvmV1Decoder.sol";
 import {LeagueCore, MarketConfig, MarketState} from "./LeagueCore.sol";
+import {SeasonParams} from "./LeagueSeason.sol";
 import {IProofDecoder} from "./IProofDecoder.sol";
 
 /// ProofGateway — the seven-check referee and the AD-4 fan-out (Stories 2.3-2.4,
@@ -60,16 +61,18 @@ contract ProofGateway {
     // key, and gating its void on this mapping would freeze it forever (see void's doc).
     mapping(bytes32 => uint64) public acceptedAt;
 
-    constructor(address[] memory creators, address[] memory registrars) {
+    constructor(address[] memory creators, address[] memory registrars, SeasonParams memory season) {
         // With no post-deploy fix path, a mis-wired deployment would be permanently
-        // unusable; the constructor is the only place to refuse it (the creator-set
-        // refusals live in LeagueCore's own constructor and bubble up from `new`).
+        // unusable; the constructor is the only place to refuse it (the creator-set and
+        // season-param refusals live in LeagueCore's own constructors and bubble up
+        // from `new` — the full contract surface deploys together, Season included,
+        // which is Story 2.10's critic-G1 point).
         if (registrars.length == 0) revert InvalidRegistrarSet();
         for (uint256 i = 0; i < registrars.length; i++) {
             if (registrars[i] == address(0)) revert InvalidRegistrarSet();
             isDecoderRegistrar[registrars[i]] = true;
         }
-        leagueCore = new LeagueCore(creators);
+        leagueCore = new LeagueCore(creators, season);
     }
 
     /// Append-only registration (AD-3): a new source-event shape is a new id; existing

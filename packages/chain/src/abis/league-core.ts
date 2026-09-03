@@ -8,6 +8,28 @@ export const leagueCoreAbi = [
         "name": "creators",
         "type": "address[]",
         "internalType": "address[]"
+      },
+      {
+        "name": "season",
+        "type": "tuple",
+        "internalType": "struct SeasonParams",
+        "components": [
+          {
+            "name": "seasonEnd",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "seasonEndDay",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "escrow",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
       }
     ],
     "stateMutability": "nonpayable"
@@ -28,6 +50,45 @@ export const leagueCoreAbi = [
   {
     "type": "function",
     "name": "MIN_COMMIT_MARGIN",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SEASON_CHALLENGE_WINDOW",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "SHARE_BPS_DENOMINATOR",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "candidateWindowEndsAt",
     "inputs": [],
     "outputs": [
       {
@@ -275,6 +336,20 @@ export const leagueCoreAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "finalizeSeasonPayout",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "fundSeason",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -712,6 +787,121 @@ export const leagueCoreAbi = [
   },
   {
     "type": "function",
+    "name": "seasonCandidate",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "candidates",
+        "type": "address[3]",
+        "internalType": "address[3]"
+      },
+      {
+        "name": "windowEndsAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seasonClaimableOf",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seasonEnd",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seasonEndDay",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seasonEscrow",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seasonMarketsCreated",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seasonMarketsTerminal",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seasonPaid",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "seasonPointsOf",
     "inputs": [
       {
@@ -720,6 +910,19 @@ export const leagueCoreAbi = [
         "internalType": "address"
       }
     ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seasonPool",
+    "inputs": [],
     "outputs": [
       {
         "name": "",
@@ -850,6 +1053,19 @@ export const leagueCoreAbi = [
   },
   {
     "type": "function",
+    "name": "submitSeasonCandidate",
+    "inputs": [
+      {
+        "name": "candidates",
+        "type": "address[3]",
+        "internalType": "address[3]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "void",
     "inputs": [
       {
@@ -884,6 +1100,13 @@ export const leagueCoreAbi = [
       }
     ],
     "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "withdrawSeasonPayout",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "event",
@@ -1172,6 +1395,88 @@ export const leagueCoreAbi = [
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "SeasonCandidateSubmitted",
+    "inputs": [
+      {
+        "name": "submitter",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "candidates",
+        "type": "address[3]",
+        "indexed": false,
+        "internalType": "address[3]"
+      },
+      {
+        "name": "windowEndsAt",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SeasonFunded",
+    "inputs": [
+      {
+        "name": "pool",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SeasonPayoutFinalized",
+    "inputs": [
+      {
+        "name": "candidates",
+        "type": "address[3]",
+        "indexed": false,
+        "internalType": "address[3]"
+      },
+      {
+        "name": "amounts",
+        "type": "uint256[3]",
+        "indexed": false,
+        "internalType": "uint256[3]"
+      },
+      {
+        "name": "escrowReturn",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SeasonPayoutWithdrawn",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "BatchBeyondSet",
     "inputs": []
@@ -1189,6 +1494,31 @@ export const leagueCoreAbi = [
   {
     "type": "error",
     "name": "BoundaryCountOutOfRange",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CandidateNotEligible",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CandidateNotOrdered",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CandidateNotSuperior",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ChallengeWindowClosed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ChallengeWindowOpen",
     "inputs": []
   },
   {
@@ -1214,6 +1544,11 @@ export const leagueCoreAbi = [
   {
     "type": "error",
     "name": "InvalidPickProof",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSeasonParams",
     "inputs": []
   },
   {
@@ -1248,6 +1583,11 @@ export const leagueCoreAbi = [
   },
   {
     "type": "error",
+    "name": "NoCandidate",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NonContiguousBatch",
     "inputs": []
   },
@@ -1273,7 +1613,47 @@ export const leagueCoreAbi = [
   },
   {
     "type": "error",
+    "name": "NotSeasonEscrow",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NothingToWithdraw",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "PayoutOptionMismatch",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeasonAlreadyFunded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeasonAlreadyPaid",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeasonDayAfterSeasonEnd",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeasonFundingClosed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeasonMarketsNotTerminal",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeasonNotOver",
     "inputs": []
   },
   {
@@ -1308,6 +1688,11 @@ export const leagueCoreAbi = [
   },
   {
     "type": "error",
+    "name": "WithdrawFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "WrongProofLength",
     "inputs": []
   },
@@ -1324,6 +1709,11 @@ export const leagueCoreAbi = [
   {
     "type": "error",
     "name": "ZeroLeagueDay",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ZeroSeasonFunding",
     "inputs": []
   },
   {

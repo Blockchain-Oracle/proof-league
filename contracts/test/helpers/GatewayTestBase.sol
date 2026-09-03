@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {INativeQueryVerifier} from "@gluwa/usc-contracts/contracts/write-ability/common/INativeQueryVerifier.sol";
 import {LeagueCore, MarketConfig} from "../../src/LeagueCore.sol";
+import {SeasonParams} from "../../src/LeagueSeason.sol";
 import {ProofGateway} from "../../src/ProofGateway.sol";
 import {LidoRateRatioDecoder} from "../../src/LidoRateRatioDecoder.sol";
 import {MockNativeQueryVerifier} from "./VerifierMocks.sol";
@@ -33,7 +34,10 @@ abstract contract GatewayTestBase is Test {
         vm.warp(T0);
         address[] memory ops = new address[](1);
         ops[0] = OPERATOR;
-        gateway = new ProofGateway(ops, ops);
+        // Season horizon far past every gateway warp; escrow uninvolved in these suites.
+        gateway = new ProofGateway(
+            ops, ops, SeasonParams({seasonEnd: T0 + 3650 days, seasonEndDay: 100_000, escrow: address(0xE5C)})
+        );
         league = gateway.leagueCore();
         // Deployed before the prank: `new` would otherwise consume the single-call prank
         // and registerDecoder would run unpranked (the LeagueCore.t.sol footgun).

@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {LeagueCore, MarketConfig} from "../../src/LeagueCore.sol";
+import {SeasonParams} from "../../src/LeagueSeason.sol";
 
 /// Shared LeagueCore harness [review 2026-09-03]: one deploy path and ONE baseline
 /// config for every suite that exercises the core directly, so the boundary vector the
@@ -15,8 +16,14 @@ abstract contract LeagueCoreTestBase is Test {
     address internal constant OPERATOR = address(0xA11CE);
     address internal constant WORKER = address(0xB0B);
     address internal constant STRANGER = address(0xBAD);
+    address internal constant ESCROW = address(0xE5C);
     // Fixed chain-time origin so every admission window in the tests is explicit.
     uint64 internal constant T0 = 1_756_000_000;
+    // Season horizon far past every suite's warps (void tests reach ~ +26 h), and a
+    // day ceiling above every fixture leagueDay, so pre-2.10 suites run inside the
+    // season unchanged; season tests warp past SEASON_END deliberately.
+    uint64 internal constant SEASON_END = T0 + 3650 days;
+    uint32 internal constant SEASON_END_DAY = 100_000;
 
     bytes32 internal constant ROOT = keccak256("pickset-root");
     bytes32 internal constant SHA = keccak256("pickset-file-bytes");
@@ -27,7 +34,11 @@ abstract contract LeagueCoreTestBase is Test {
         address[] memory creators = new address[](2);
         creators[0] = OPERATOR;
         creators[1] = WORKER;
-        league = new LeagueCore(creators);
+        league = new LeagueCore(creators, _seasonParams());
+    }
+
+    function _seasonParams() internal pure returns (SeasonParams memory) {
+        return SeasonParams({seasonEnd: SEASON_END, seasonEndDay: SEASON_END_DAY, escrow: ESCROW});
     }
 
     /// Baseline admissible config: 5 Outcome Options = 4 ordered internal thresholds

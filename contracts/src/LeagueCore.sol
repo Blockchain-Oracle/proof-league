@@ -4,13 +4,15 @@ pragma solidity 0.8.28;
 import {MarketConfig, MarketState, Pick, PickCommitment, Resolution} from "./LeagueTypes.sol";
 import {BoundaryCountOutOfRange, LeagueCanon} from "./LeagueCanon.sol";
 import {LeagueScoring} from "./LeagueScoring.sol";
+import {LeagueSeasonSurface, SeasonParams} from "./LeagueSeason.sol";
 
-/// LeagueCore — the market registry and settlement ledger (Stories 2.1-2.5).
+/// LeagueCore — the market registry and settlement ledger (Stories 2.1-2.6, 2.10).
 /// Sole minter of marketId; holds each Market's immutable config, the sourceKey index
 /// the AD-4 fan-out walks, each Market's terminal Resolution, and the scoring state
-/// (LeagueScoring, pre-split per CONVENTIONS §1 — the types live in LeagueTypes.sol and
-/// the pure canonical mappings in LeagueCanon.sol, all inlined internal code, so the
-/// deployed surface is still this one contract). Deliberately exposes no owner, no
+/// (LeagueScoring, pre-split per CONVENTIONS §1 — the types live in LeagueTypes.sol,
+/// the pure canonical mappings in LeagueCanon.sol, and the Season surface + ranking
+/// reads in the inherited LeagueSeasonSurface, so the deployed surface is still this
+/// one contract at one address). Deliberately exposes no owner, no
 /// upgrade path and no config mutator: the remedy for a broken market is redeploy +
 /// rebuild (AD-13, AD-20). Deployed BY its ProofGateway's constructor
 /// [decision 2026-09-03]: the deployer is recorded as the one resolver, so the mutual
@@ -19,7 +21,7 @@ import {LeagueScoring} from "./LeagueScoring.sol";
 /// gateway.leagueCore() — a core configured independently could have any deployer as
 /// its resolver, which no constructor check can refuse (the deploying gateway has no
 /// code yet while this constructor runs) [review 2026-09-03].
-contract LeagueCore {
+contract LeagueCore is LeagueSeasonSurface {
     // Mirrors MIN_COMMIT_MARGIN_SEC in packages/shared/src/time.ts (AD-14): an unusably
     // thin commit window is unrepresentable on-chain.
     uint64 public constant MIN_COMMIT_MARGIN = 300;
@@ -85,11 +87,11 @@ contract LeagueCore {
     mapping(bytes32 => uint256[]) private _marketsBySourceKey;
     mapping(uint256 => PickCommitment) private _commitments;
     mapping(uint256 => Resolution) private _resolutions;
-    // Story 2.5's ledger (cursor, allowance, aggregates, streak inputs, tie-break
-    // ordinals), owned by LeagueScoring; this contract only assembles contexts.
-    LeagueScoring.State private _scoring;
+    // Story 2.5's scoring ledger `_scoring` is hosted by LeagueSeasonSurface (the
+    // season machine and ranking reads live beside it); this contract assembles its
+    // scoring contexts and drives its transitions.
 
-    constructor(address[] memory creators) {
+    constructor(address[] memory creators, SeasonParams memory season) LeagueSeasonSurface(season) {
         // With no post-deploy fix path (AD-20), a creator-less or zero-entry deployment
         // would be permanently unusable; the constructor is the only place to refuse it.
         if (creators.length == 0) revert InvalidCreatorSet();
@@ -112,6 +114,9 @@ contract LeagueCore {
         // could never resolve, only void — the dead-slot shape AD-21 makes unrepresentable.
         if (config.decoderId == 0) revert ZeroDecoderId();
         if (config.leagueDay == 0) revert ZeroLeagueDay();
+        // AD-17: season-day creation closes at seasonEnd, so the payout gate below can
+        // only ever move toward terminal.
+        _requireSeasonDayCreatable(config.leagueDay);
         // A market whose open window never existed is a dead slot, not a Market (AD-21).
         // Chain-head time is the architecture's one deciding clock (AD-10); windows are
         // hour-scale, so validator-level timestamp drift cannot flip this admission.
@@ -148,6 +153,7 @@ contract LeagueCore {
         // leagueDay until terminal, so a never-committed market honestly holds the day
         // provisional until Story 2.6 voids it.
         LeagueScoring.noteMarketCreated(_scoring, config.leagueDay);
+        _noteSeasonMarketCreated(config.leagueDay);
         emit MarketCreated(marketId, sourceKey, config);
     }
 
@@ -204,6 +210,7 @@ contract LeagueCore {
         // forge-lint: disable-end(block-timestamp)
         _resolutions[marketId] =
             Resolution({value: value, occurredAt: occurredAt, resolvedAt: resolvedAt, winningOption: winningOption});
+        _noteSeasonMarketTerminal(config.leagueDay);
         emit MarketResolved(marketId, LeagueCanon.sourceKeyOf(config), value, winningOption, occurredAt);
     }
 
@@ -235,6 +242,7 @@ contract LeagueCore {
         // The day-completeness half of the season-safety promise (AD-16): a voided market
         // stops holding its leagueDay provisional, so streaks and the payout gate advance.
         LeagueScoring.noteVoided(_scoring, config.leagueDay);
+        _noteSeasonMarketTerminal(config.leagueDay);
         emit MarketVoided(marketId, LeagueCanon.sourceKeyOf(config));
     }
 
@@ -330,52 +338,8 @@ contract LeagueCore {
         return _marketsBySourceKey[sourceKey];
     }
 
-    // Scoring ledger reads (Story 2.5): each is the one on-chain answer the Leaderboard,
-    // proof panel and `pnpm rebuild` re-derive against (AD-8). Zero-values are honest
-    // "never scored" answers, so none of these revert on unknown keys.
-    function seasonPointsOf(address player) external view returns (uint256) {
-        return _scoring.seasonPoints[player];
-    }
-
-    function dailySpentOf(address player, uint32 utcDay) external view returns (uint256) {
-        return _scoring.dailySpent[player][utcDay];
-    }
-
-    function dayAggregateOf(address player, uint32 leagueDay)
-        external
-        view
-        returns (LeagueScoring.DayAggregate memory)
-    {
-        return _scoring.dayAggregates[player][leagueDay];
-    }
-
-    function dayMarketsOf(uint32 leagueDay) external view returns (LeagueScoring.DayMarkets memory) {
-        return _scoring.dayMarkets[leagueDay];
-    }
-
-    function playedDaysOf(address player) external view returns (uint32[] memory) {
-        return _scoring.playedDays[player];
-    }
-
-    /// The AD-16 fold, recomputed on every read (which subsumes "on every finalization").
-    function streakOf(address player) external view returns (uint32) {
-        return LeagueScoring.streakOf(_scoring, player);
-    }
-
-    /// FR-19's third tie-break key; 0 = no settled pick yet.
-    function earliestCommitOrdinalOf(address player) external view returns (uint64) {
-        return _scoring.earliestOrdinal[player];
-    }
-
-    function commitOrdinalOf(uint256 marketId) external view returns (uint64) {
-        return _scoring.commitOrdinal[marketId];
-    }
-
-    /// Worker resume point (AD-13) and the exactly-once witness for tests and rebuild.
-    function scoringProgressOf(uint256 marketId) external view returns (uint256 cursor, bool fullyScored) {
-        LeagueScoring.MarketProgress storage prog = _scoring.progress[marketId];
-        return (prog.cursor, prog.fullyScored);
-    }
+    // The scoring ledger reads (seasonPointsOf, streakOf, earliestCommitOrdinalOf and
+    // friends) live in LeagueSeasonSurface beside the machine that consumes them.
 
     // Ids are dense from 1, so existence is a range check; the zero-value MarketState
     // (Created) can therefore never leak for an unminted id.

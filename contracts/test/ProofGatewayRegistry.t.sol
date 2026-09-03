@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {LeagueCore} from "../src/LeagueCore.sol";
+import {SeasonParams} from "../src/LeagueSeason.sol";
 import {ProofGateway} from "../src/ProofGateway.sol";
 
 /// Story 2.3 — the decoder registry: append-only ids, never repointed, registrar-gated
@@ -21,7 +22,7 @@ contract ProofGatewayRegistryTest is Test {
     function setUp() public {
         address[] memory ops = new address[](1);
         ops[0] = OPERATOR;
-        gateway = new ProofGateway(ops, ops);
+        gateway = new ProofGateway(ops, ops, _season());
         league = gateway.leagueCore();
         // Minimal bytecode so the fixture addresses pass the codeless-decoder refusal
         // [review 2026-09-02]; registry tests only exercise bookkeeping, never decode().
@@ -84,13 +85,20 @@ contract ProofGatewayRegistryTest is Test {
         gateway.decoderOf(2);
     }
 
+    // Season horizon far past every registry warp; params refused per-field in
+    // LeagueSeasonSurface's own suite.
+    function _season() internal view returns (SeasonParams memory) {
+        // forge-lint: disable-next-line(block-timestamp)
+        return SeasonParams({seasonEnd: uint64(block.timestamp) + 3650 days, seasonEndDay: 100_000, escrow: address(0xE5C)});
+    }
+
     // ---- constructor refusals and wiring: no post-deploy fix path exists (AD-20) ----
 
     function test_constructor_rejectsEmptyRegistrarSet() public {
         address[] memory ops = new address[](1);
         ops[0] = OPERATOR;
         vm.expectRevert(ProofGateway.InvalidRegistrarSet.selector);
-        new ProofGateway(ops, new address[](0));
+        new ProofGateway(ops, new address[](0), _season());
     }
 
     function test_constructor_rejectsZeroRegistrarEntry() public {
@@ -100,7 +108,7 @@ contract ProofGatewayRegistryTest is Test {
         regs[0] = OPERATOR;
         regs[1] = address(0);
         vm.expectRevert(ProofGateway.InvalidRegistrarSet.selector);
-        new ProofGateway(ops, regs);
+        new ProofGateway(ops, regs, _season());
     }
 
     /// Creator-set refusals live in LeagueCore's constructor and bubble up through the
@@ -109,7 +117,7 @@ contract ProofGatewayRegistryTest is Test {
         address[] memory regs = new address[](1);
         regs[0] = OPERATOR;
         vm.expectRevert(LeagueCore.InvalidCreatorSet.selector);
-        new ProofGateway(new address[](0), regs);
+        new ProofGateway(new address[](0), regs, _season());
     }
 
     /// The 2026-09-03 wiring decision, held both ways: the gateway deployed the core in

@@ -9,7 +9,8 @@ export type DeployedContracts = {
 };
 
 export const DEPLOYED: DeployedContracts = {
-  // Sepolia, 2026-09-03, worker1 nonce 0 (tx 0x4c664e7159794b6beb4d6e65610bf412e653ebc1cd912c9b62fa6e87eb65b3ef),
-  // creators = worker1..3, source verified on eth-sepolia.blockscout.com (0.8.28, paris).
+  // Sepolia, 2026-09-03, worker1 nonce 0 (tx 0x4c664e71..eb65b3ef — truncated for the
+  // secret-scan key pattern), creators = worker1..3, source verified on
+  // eth-sepolia.blockscout.com (0.8.28, paris).
   contestSource: "0x8334889B9c068e57078Da3376087ee2b7A7fd42B",
 };
