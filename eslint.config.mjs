@@ -110,6 +110,38 @@ export default tseslint.config(
     },
   },
   {
+    // Story 3.9 / UX-DR14: Reels is a DISCOVERY surface. It may render a Market and link
+    // to the canonical composer, and it may not grow its own signing, submission, payout
+    // or availability logic — a second integrity model reachable only from the fast feed
+    // is exactly how a product ends up with two answers to "was this Pick legal". The
+    // canonical view model is the sanctioned way in, so the ban is on everything below it.
+    // (Flat config replaces rule entries wholesale, so the web zone's list is restated.)
+    files: ["apps/web/app/(product)/reels/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            { group: ["@proof-league/worker*", "**/apps/worker/*"], message: "web imports only from packages/* (AD-2)." },
+            DRIZZLE_RESTRICTION,
+            {
+              group: ["viem", "viem/*"],
+              message: "Reels never signs or submits (UX-DR14). Link to the canonical composer instead.",
+            },
+            {
+              group: ["@proof-league/shared/pick", "@proof-league/shared/pickset", "@proof-league/shared/payout", "@proof-league/shared/intake"],
+              message: "Reels reads the canonical view model only (AD-23); Pick legality and payout live behind it.",
+            },
+            {
+              group: ["**/lib/market-data*", "**/lib/market-data.js"],
+              message: "Reels consumes boardMarketViews, never its own query (AD-23).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // The single sanctioned chip renderer keeps only the AD-6 selectors.
     files: ["apps/web/components/state-chip.tsx"],
     rules: {

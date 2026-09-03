@@ -262,6 +262,19 @@ export const latestSettledOf = (views: readonly MarketView[]): MarketView | unde
     .filter((view) => view.settlement !== undefined)
     .sort((left, right) => (right.settlement?.resolvedAt ?? 0) - (left.settlement?.resolvedAt ?? 0))[0];
 
+/// Discovery order (Story 3.9): what a Player can still act on, soonest lock first, then
+/// the record newest first. Shared with any surface that walks Markets one at a time, so
+/// a cursor built on it means the same thing everywhere.
+export const reelOrderOf = (views: readonly MarketView[]): MarketView[] => {
+  const actionable = views
+    .filter((view) => view.bucket !== "settled")
+    .sort((left, right) => left.lockTime - right.lockTime);
+  const record = views
+    .filter((view) => view.bucket === "settled")
+    .sort((left, right) => (right.settlement?.resolvedAt ?? right.voidDeadline) - (left.settlement?.resolvedAt ?? left.voidDeadline));
+  return [...actionable, ...record];
+};
+
 /// The one Market a visitor should look at first: the next one still to lock, and failing
 /// that the most recently settled, because a league with nothing open still has a record.
 /// Selection only, never fabrication: an empty board yields nothing to feature.
