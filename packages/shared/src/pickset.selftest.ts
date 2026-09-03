@@ -5,6 +5,7 @@ import { creditCoin3Testnet } from "@proof-league/chain";
 import { PICK_DOMAIN_NAME, PICK_DOMAIN_VERSION, PICK_TYPES, type PickDomain, type PickMessage } from "./pick.js";
 import {
   buildPickSetDocument,
+  effectivePickCounts,
   parsePickSetDocument,
   pickSetFileName,
   pickSetSha256,
@@ -125,7 +126,43 @@ const main = async (): Promise<void> => {
     return fail("a pick verified against a different deployment's domain");
   }
 
-  log.info("pickset.selftest: PASS (canonical order, deterministic bytes, strict reader, signature gate)");
+  // -- the display fold agrees with what the chain will score -------------------------
+  // A set holds every signed pick, so counting leaves per option is wrong in exactly the
+  // two ways the scoring machine is right about: latest nonce wins, and a zero-stake
+  // pick is a cancellation rather than a position. Both probed here, because a display
+  // that disagrees with the contract is a second reading of the same market.
+  const counted = effectivePickCounts(
+    [
+      { player: playerA, nonce: 1, optionIndex: 0, stake: 10 }, // superseded below
+      { player: playerA, nonce: 2, optionIndex: 3, stake: 10 }, // A's real position
+      { player: playerB, nonce: 1, optionIndex: 3, stake: 10 }, // cancelled below
+      { player: playerB, nonce: 4, optionIndex: 3, stake: 0 }, // zero-stake tombstone
+      { player: "0x3000000000000000000000000000000000000003", nonce: 1, optionIndex: 9, stake: 5 },
+    ],
+    5,
+  );
+  if (counted.byOption[0] !== 0) return fail("a superseded pick was still counted on its old option");
+  if (counted.byOption[3] !== 1) return fail(`option 3 counted ${counted.byOption[3]}, expected only A's latest`);
+  if (counted.cancelled !== 1) return fail(`cancelled counted ${counted.cancelled}, expected the one tombstone`);
+  if (counted.byOption.reduce((sum, count) => sum + count, 0) !== 1) {
+    return fail("an out-of-range option index was folded into a bucket it cannot be scored into");
+  }
+  // Case order must not matter: intake lowercases at the door, but a set read back from a
+  // published file may carry checksummed addresses for the same player.
+  const mixedCase = effectivePickCounts(
+    [
+      { player: playerA.toUpperCase().replace("0X", "0x"), nonce: 1, optionIndex: 0, stake: 10 },
+      { player: playerA, nonce: 2, optionIndex: 1, stake: 10 },
+    ],
+    2,
+  );
+  if (mixedCase.byOption[0] !== 0 || mixedCase.byOption[1] !== 1) {
+    return fail("one player in two casings folded as two players");
+  }
+
+  log.info(
+    "pickset.selftest: PASS (canonical order, deterministic bytes, strict reader, signature gate, display fold)",
+  );
 };
 
 await main();

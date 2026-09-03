@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { readEndpoints } from "@proof-league/chain";
-import { deriveMarketChip, expectedSettlementSecOf, formatUtc } from "@proof-league/shared";
+import { formatUtc } from "@proof-league/shared";
+import { Countdown } from "../../components/countdown.js";
 import { StateChip } from "../../components/state-chip.js";
 import { SettledRecordCard } from "../../components/settled-record.js";
 import { Mark } from "../../components/marks.js";
-import { latestSettledRecord, nextMarketToLock } from "../../lib/market-data.js";
+import { boardMarketViews } from "../../lib/market-board.js";
+import { latestSettledOf, nextToLockOf } from "../../lib/market-view.js";
 
 // The landing (Story 3.2): a visitor sees what is being predicted and how it settles in
 // the first viewport, then one real proof-backed record with links that resolve publicly.
@@ -31,9 +33,13 @@ const STEPS = [
 ] as const;
 
 export default async function Home() {
-  const [featured, settled] = await Promise.all([nextMarketToLock(), latestSettledRecord()]);
-  const explorerBase = readEndpoints(process.env).EXPLORER_BASE_CC3;
   const nowSec = Math.floor(Date.now() / 1000);
+  // One board read serves both exhibits, through the same view model the Markets page
+  // uses, so the landing cannot describe a Market differently from the board it links to.
+  const views = await boardMarketViews(nowSec);
+  const featured = nextToLockOf(views);
+  const settled = latestSettledOf(views);
+  const explorerBase = readEndpoints(process.env).EXPLORER_BASE_CC3;
   return (
     <div className="flex flex-col gap-16 py-14 md:gap-24 md:py-20">
       <section className="grid gap-10 lg:grid-cols-[7fr_5fr] lg:items-start lg:gap-12">
@@ -69,24 +75,23 @@ export default async function Home() {
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between gap-3">
                   <span className="font-data text-xs uppercase tracking-widest text-ink-muted">
-                    Next to lock: market {featured.marketId}
+                    Open now: market {featured.marketId}
                   </span>
-                  <StateChip
-                    chip={deriveMarketChip(
-                      featured.state,
-                      {
-                        lockTimeSec: featured.lockTime,
-                        sourceWindowOpenSec: featured.sourceWindowOpen,
-                        voidDeadlineSec: featured.voidDeadline,
-                        expectedSettlementSec: expectedSettlementSecOf(featured.sourceWindowOpen),
-                      },
-                      nowSec,
-                    )}
-                  />
+                  <StateChip chip={featured.chip} />
                 </div>
-                <p className="font-data text-sm">
-                  Locks {formatUtc(featured.lockTime)} · settles by proof after{" "}
-                  {formatUtc(featured.sourceWindowOpen)}
+                <Link href={`/markets/${featured.marketId}`} className="font-display text-lg font-bold hover:text-brand">
+                  {featured.question}
+                </Link>
+                <p className="font-data text-sm text-ink-muted">
+                  Locks{" "}
+                  <span className="text-ink">
+                    <Countdown
+                      targetSec={featured.lockTime}
+                      absolute={formatUtc(featured.lockTime)}
+                      passed="lock time has passed"
+                    />
+                  </span>{" "}
+                  · settles by proof after {formatUtc(featured.sourceWindowOpen)}
                 </p>
               </div>
             )}
@@ -104,7 +109,7 @@ export default async function Home() {
               </p>
             </div>
           ) : (
-            <SettledRecordCard record={settled} explorerBase={explorerBase} />
+            <SettledRecordCard view={settled} explorerBase={explorerBase} />
           )}
         </div>
       </section>

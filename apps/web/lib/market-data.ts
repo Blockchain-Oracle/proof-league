@@ -14,6 +14,11 @@ import { and, createDb, desc, eq, markets, resolutions, transparencyObservations
 type Database = { db: Db; end: () => Promise<void> };
 const globalRef = globalThis as { __plDb?: Database; __plCore?: Promise<Address | undefined> };
 
+/// Exported so the board module can compose its own reads over the SAME connection and
+/// the same derived core. A second opener would be a second answer to "which league is
+/// this", which is the one question every read here is scoped by.
+export const projectionDb = (): Db | undefined => dbOrUndefined();
+
 const dbOrUndefined = (): Db | undefined => {
   const url = process.env.DATABASE_URL;
   if (url === undefined) return undefined;
@@ -23,6 +28,8 @@ const dbOrUndefined = (): Db | undefined => {
 
 /// The gateway deployed its own core, so the core is derived, never configured (the
 /// wiring decision that makes the resolver unforgeable). Memoized per server process.
+export const deployedCore = async (): Promise<Address | undefined> => coreAddress();
+
 const coreAddress = async (): Promise<Address | undefined> => {
   const gateway = DEPLOYED.proofGateway;
   if (gateway === undefined) return undefined;
@@ -40,120 +47,17 @@ const coreAddress = async (): Promise<Address | undefined> => {
   return globalRef.__plCore;
 };
 
-const MARKET_COLUMNS = {
-  marketId: markets.marketId,
-  leagueDay: markets.leagueDay,
-  lockTime: markets.lockTime,
-  sourceWindowOpen: markets.sourceWindowOpen,
-  voidDeadline: markets.voidDeadline,
-  state: markets.state,
-  payoutN: markets.payoutN,
-} as const;
+// The board's own reads live in market-board.ts, which composes these helpers with the
+// canonical view model. This file stays what it says it is: scoped class-1 reads.
 
-export type FeaturedMarket = {
-  readonly marketId: string;
-  readonly leagueDay: number;
-  readonly lockTime: number;
-  readonly sourceWindowOpen: number;
-  readonly voidDeadline: number;
-  readonly state: "Created" | "Committed" | "Resolved" | "Voided";
-  readonly payoutN: number;
+/// One market with every field needed to explain how it settles, plus its resolution when
+/// it has one. The whole row travels: the detail page shows the source identity and the
+/// commitment, and `marketViewOf` reads the rest, so both halves of that page come from
+/// one read of one row.
+export type MarketDetail = typeof markets.$inferSelect & {
+  readonly resolution: typeof resolutions.$inferSelect | undefined;
 };
 
-/// The next market to lock, for the hero's live evidence slot.
-export const nextMarketToLock = async (): Promise<FeaturedMarket | undefined> => {
-  const db = dbOrUndefined();
-  const core = await coreAddress();
-  if (db === undefined || core === undefined) return undefined;
-  try {
-    const rows = await db
-      .select(MARKET_COLUMNS)
-      .from(markets)
-      .where(and(eq(markets.core, core.toLowerCase()), eq(markets.state, "Created")))
-      .orderBy(markets.lockTime)
-      .limit(1);
-    return rows[0];
-  } catch {
-    return undefined; // an unreachable projection is an empty state, never an error page
-  }
-};
-
-export type SettledRecord = {
-  readonly marketId: string;
-  readonly value: string;
-  readonly winningOption: number;
-  readonly occurredAt: number;
-  readonly resolvedAt: number;
-  readonly proofTxHash: string | null;
-  readonly payoutN: number;
-  readonly boundaries: readonly string[];
-};
-
-/// The most recent proof-backed settlement, for the landing's exhibit. Returns nothing
-/// when none exists yet, which is a structural empty state upstream and never a
-/// fabricated one: the whole pitch is that this row is real (FR-2).
-export const latestSettledRecord = async (): Promise<SettledRecord | undefined> => {
-  const db = dbOrUndefined();
-  const core = await coreAddress();
-  if (db === undefined || core === undefined) return undefined;
-  try {
-    const rows = await db
-      .select({
-        marketId: resolutions.marketId,
-        value: resolutions.value,
-        winningOption: resolutions.winningOption,
-        occurredAt: resolutions.occurredAt,
-        resolvedAt: resolutions.resolvedAt,
-        proofTxHash: resolutions.proofTxHash,
-        payoutN: markets.payoutN,
-        boundaries: markets.boundaries,
-      })
-      .from(resolutions)
-      .innerJoin(markets, and(eq(markets.core, resolutions.core), eq(markets.marketId, resolutions.marketId)))
-      .where(eq(resolutions.core, core.toLowerCase()))
-      .orderBy(desc(resolutions.resolvedAt))
-      .limit(1);
-    return rows[0];
-  } catch {
-    return undefined;
-  }
-};
-
-/// The board's rows, earliest lock first, capped; the Markets story adds real filters.
-export const listBoardMarkets = async (): Promise<FeaturedMarket[]> => {
-  const db = dbOrUndefined();
-  const core = await coreAddress();
-  if (db === undefined || core === undefined) return [];
-  try {
-    return await db
-      .select(MARKET_COLUMNS)
-      .from(markets)
-      .where(eq(markets.core, core.toLowerCase()))
-      .orderBy(markets.lockTime)
-      .limit(50);
-  } catch {
-    return [];
-  }
-};
-
-export type MarketDetail = FeaturedMarket & {
-  readonly sourceKey: string;
-  readonly sourceChainKey: string;
-  readonly emitter: string;
-  readonly eventSignature: string;
-  readonly subjectFilter: string;
-  readonly decoderId: number;
-  readonly boundaries: readonly string[];
-  readonly commitRoot: string | null;
-  readonly commitSha256: string | null;
-  readonly commitUri: string | null;
-  readonly committedAt: number | null;
-  readonly resolution?: SettledRecord | undefined;
-};
-
-/// One market with everything needed to explain how it settles, plus its resolution when
-/// it has one. Every field is a projection of chain state, so the page can show the
-/// derivation without computing anything itself.
 export const marketDetail = async (marketId: string): Promise<MarketDetail | undefined> => {
   const db = dbOrUndefined();
   const core = await coreAddress();
@@ -171,13 +75,7 @@ export const marketDetail = async (marketId: string): Promise<MarketDetail | und
       .from(resolutions)
       .where(and(eq(resolutions.core, core.toLowerCase()), eq(resolutions.marketId, marketId)))
       .limit(1);
-    return {
-      ...row,
-      resolution:
-        resolution === undefined
-          ? undefined
-          : { ...resolution, payoutN: row.payoutN, boundaries: row.boundaries },
-    };
+    return { ...row, resolution };
   } catch {
     return undefined;
   }

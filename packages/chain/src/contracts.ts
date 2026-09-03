@@ -18,6 +18,16 @@ export type DeployedContracts = {
   readonly lidoRateRatioDecoderId?: number;
 };
 
+/// Source contracts the product is willing to describe in plain words. A Market's SUBJECT
+/// is decided by which contract emitted its event, never by which decoder read it: the
+/// same decoder can be pointed at any emitter, and every verify run creates fixture
+/// markets that do exactly that. Keeping this beside DEPLOYED keeps both facts in the one
+/// file that is allowed to know addresses.
+export const SOURCE_EMITTERS = {
+  /// Lido's stETH on Ethereum mainnet, the daily rebase report (docs/launch-lineup.md).
+  lidoSteth: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+} as const;
+
 export const DEPLOYED: DeployedContracts = {
   // Creditcoin 3 testnet, 2026-09-03: deployed by scripts in apps/worker/src/deploy.ts.
   // The gateway deployed its own LeagueCore (0xFe8C5438..) — derive it via

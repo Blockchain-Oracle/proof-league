@@ -225,3 +225,54 @@ export const verifySignedPick = async (domain: PickDomain, pick: SignedPick): Pr
     return false;
   }
 };
+
+// -- what a set means once you stop counting leaves ------------------------------------
+//
+// A committed set holds EVERY signed pick, superseded nonces and zero-stake tombstones
+// included (that is the whole point of the document). So a display that counts leaves per
+// option counts a player who changed their mind twice, and disagrees with the outcome the
+// contract will score. LeagueScoring resolves the set by latest-nonce-wins per player,
+// with a zero-stake pick as a cancellation that leaves no position behind.
+//
+// This is that rule as a pure fold, for surfaces that show a distribution before the
+// scoring events exist. The chain remains the authority: nothing derived here is stored,
+// fed to a class-1 value, or used to decide anything. It is pinned by selftest because an
+// unexercised mirror of a consensus rule is exactly how two readings drift apart.
+
+export type EffectivePickCount = {
+  /// Picks that still hold a position, per option index.
+  readonly byOption: readonly number[];
+  /// Players whose latest pick is a cancellation, counted so a set that is mostly
+  /// withdrawals cannot read as an empty one.
+  readonly cancelled: number;
+};
+
+export const effectivePickCounts = (
+  picks: readonly { readonly player: string; readonly nonce: number; readonly optionIndex: number; readonly stake: number }[],
+  optionCount: number,
+): EffectivePickCount => {
+  const latest = new Map<string, { nonce: number; optionIndex: number; stake: number }>();
+  for (const pick of picks) {
+    const player = pick.player.toLowerCase();
+    const held = latest.get(player);
+    // Strictly greater: a replayed nonce has no legal meaning, and first-write-wins at
+    // intake means the earlier row is the one the signature bound.
+    if (held === undefined || pick.nonce > held.nonce) {
+      latest.set(player, { nonce: pick.nonce, optionIndex: pick.optionIndex, stake: pick.stake });
+    }
+  }
+  const byOption = Array.from({ length: optionCount }, () => 0);
+  let cancelled = 0;
+  for (const held of latest.values()) {
+    if (held.stake === 0) {
+      cancelled += 1;
+      continue;
+    }
+    // An option index outside the market's range cannot be scored into a bucket, so it is
+    // not counted into one either; the contract skips it as a foreign pick.
+    if (held.optionIndex >= 0 && held.optionIndex < optionCount) {
+      byOption[held.optionIndex] = (byOption[held.optionIndex] ?? 0) + 1;
+    }
+  }
+  return { byOption, cancelled };
+};
