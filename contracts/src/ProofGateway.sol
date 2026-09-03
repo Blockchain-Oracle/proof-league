@@ -9,20 +9,21 @@ import {EvmV1Decoder} from "@gluwa/usc-contracts/contracts/write-ability/common/
 import {LeagueCore, MarketConfig, MarketState} from "./LeagueCore.sol";
 import {IProofDecoder} from "./IProofDecoder.sol";
 
-/// ProofGateway — the seven-check referee (Story 2.3, FR-13, PRD §4.4).
-/// verify() accepts a proof only when every check passes; acceptance is recorded per
-/// sourceKey (first accepted proof wins, AD-4) and Story 2.4 wires the resolution
-/// fan-out onto the same eligibility loop. Checks 5 and 7 close the replay and
-/// prover-trust classes the upstream example contracts leave open — the judge-facing
-/// claim, so each check rejects with its own named error and carries a negative test.
-/// Like LeagueCore, this contract exposes no owner, no upgrade path and no way to
-/// repoint a decoder: the only privileged power is appending to the registry (AD-20).
-/// Not deployable standalone [review 2026-09-02]: until 2.4 lands, an acceptance
-/// consumes its sourceKey (blocking void per AD-19) without resolving anything — the
-/// product deploys the full contract surface together, never this slice alone.
+/// ProofGateway — the seven-check referee and the AD-4 fan-out (Stories 2.3-2.4,
+/// FR-13/14, PRD §4.4). verify() accepts a proof only when every check passes; on
+/// acceptance it resolves EVERY Committed market on the sourceKey in the same
+/// transaction, each via its own decoderId and boundaries, and records the acceptance
+/// (first accepted proof wins, AD-4). Checks 5 and 7 close the replay and prover-trust
+/// classes the upstream example contracts leave open — the judge-facing claim, so each
+/// check rejects with its own named error and carries a negative test. Like LeagueCore,
+/// this contract exposes no owner, no upgrade path and no way to repoint a decoder: the
+/// only privileged power is appending to the registry (AD-20). The gateway deploys its
+/// own LeagueCore [decision 2026-09-03], which records this address as its one
+/// resolver — the mutual reference is born atomic, with no prediction step and no
+/// setter to mis-wire, and the "full contract surface deploys together" rule from
+/// review 2026-09-02 becomes structural.
 contract ProofGateway {
     error InvalidRegistrarSet();
-    error ZeroLeagueCore();
     error NotDecoderRegistrar();
     error ZeroDecoderAddress();
     error CodelessDecoder();
@@ -56,16 +57,16 @@ contract ProofGateway {
     // this to prove "no accepted proof on its source key".
     mapping(bytes32 => uint64) public acceptedAt;
 
-    constructor(LeagueCore core, address[] memory registrars) {
+    constructor(address[] memory creators, address[] memory registrars) {
         // With no post-deploy fix path, a mis-wired deployment would be permanently
-        // unusable; the constructor is the only place to refuse it.
-        if (address(core) == address(0)) revert ZeroLeagueCore();
+        // unusable; the constructor is the only place to refuse it (the creator-set
+        // refusals live in LeagueCore's own constructor and bubble up from `new`).
         if (registrars.length == 0) revert InvalidRegistrarSet();
         for (uint256 i = 0; i < registrars.length; i++) {
             if (registrars[i] == address(0)) revert InvalidRegistrarSet();
             isDecoderRegistrar[registrars[i]] = true;
         }
-        leagueCore = core;
+        leagueCore = new LeagueCore(creators);
     }
 
     /// Append-only registration (AD-3): a new source-event shape is a new id; existing
@@ -114,9 +115,8 @@ contract ProofGateway {
         // precompile constant inside the vendored library (this ABI has no caller-supplied
         // prover), and the chainKey queried is immutable config, never calldata — a proof
         // of the same emitter on another chain fails the genuine verifier here.
-        bool proven = NativeQueryVerifierLib.getVerifier().verifyAndEmit(
-            config.sourceChainKey, height, encodedTransaction, merkleProof, continuityProof
-        );
+        bool proven = NativeQueryVerifierLib.getVerifier()
+            .verifyAndEmit(config.sourceChainKey, height, encodedTransaction, merkleProof, continuityProof);
         if (!proven) revert VerifierRejectedProof();
 
         EvmV1Decoder.ReceiptFields memory receipt = EvmV1Decoder.decodeReceiptFields(encodedTransaction);
@@ -127,8 +127,8 @@ contract ProofGateway {
         EvmV1Decoder.LogEntry memory log =
             _matchingLog(receipt.receiptLogs, config.emitter, config.eventSignature, config.subjectFilter);
 
-        (bool eligible, bool preOpenSeen, uint64 occurredAt) = _anyEligibleMarket(markets, log);
-        if (!eligible) {
+        (bool anyResolved, bool preOpenSeen, uint64 occurredAt) = _resolveEligibleMarkets(markets, log);
+        if (!anyResolved) {
             // A proof that helps no market must not consume the key: recording it would
             // let a stale event block the real one under first-accepted-proof-wins.
             if (preOpenSeen) revert SourceEventPreOpen();
@@ -176,36 +176,52 @@ contract ProofGateway {
         revert WrongSubject();
     }
 
-    /// Check 6 per market: the event's own declared time must be at or after that
-    /// market's sourceWindowOpen. commitPicks is exclusive at open and the event window
-    /// is inclusive there, so no instant belongs to both windows. Ineligible markets are
-    /// skipped, never reverted on — one mis-stated sibling (uncommitted, unregistered or
+    /// Check 6 per market, then the AD-4 fan-out in the same pass (Story 2.4, FR-14):
+    /// every Committed sibling whose decoder reads the log and whose window had opened
+    /// resolves here, each via its own decoderId and boundaries — the caller supplied no
+    /// market list and chooses nothing; one proof, one transaction, one budget unit.
+    /// Check 6 itself: the event's own declared time must be at or after that market's
+    /// sourceWindowOpen (commitPicks is exclusive at open, the event window inclusive
+    /// there, so no instant belongs to both). Ineligible markets are skipped, never
+    /// reverted on — one mis-stated sibling (uncommitted, voided, unregistered or
     /// unreadable decoder, pre-open window) can never block the rest (AD-4 isolation);
     /// what it forfeits is its own resolution, and void (AD-19) returns its stakes.
-    function _anyEligibleMarket(uint256[] memory markets, EvmV1Decoder.LogEntry memory log)
+    /// The decoder consult is an explicit staticcall, not try/catch: a try clause
+    /// cannot catch RETURN-DATA decode failures (Solidity raises them in the caller),
+    /// so a wrong-but-answering contract registered as a decoder would revert verify
+    /// un-caught and brick its whole key — probe-proven [review 2026-09-03]. The raw
+    /// form makes the isolation total (call failure, wrong return shape, out-of-range
+    /// time all skip) and cannot re-enter; LeagueCore.resolve trusts only msg.sender.
+    function _resolveEligibleMarkets(uint256[] memory markets, EvmV1Decoder.LogEntry memory log)
         private
-        view
-        returns (bool eligible, bool preOpenSeen, uint64 occurredAt)
+        returns (bool anyResolved, bool preOpenSeen, uint64 occurredAt)
     {
+        bytes memory decodeCall = abi.encodeCall(IProofDecoder.decode, (log.topics, log.data));
         for (uint256 i = 0; i < markets.length; i++) {
             if (leagueCore.stateOf(markets[i]) != MarketState.Committed) continue;
             MarketConfig memory config = leagueCore.getMarketConfig(markets[i]);
             address decoder = _decoders[config.decoderId];
             if (decoder == address(0)) continue;
-            // Siblings share the log, so shape-level occurredAt extraction agrees across
-            // their decoders; the first ELIGIBLE market's reading is the event's — an
-            // ordering fixed by on-chain creation order, never by the caller, so
-            // `pnpm rebuild` reproduces it (AD-8) [review 2026-09-02].
-            try IProofDecoder(decoder).decode(log.topics, log.data) returns (int256, uint64 eventTime) {
-                if (eventTime < config.sourceWindowOpen) {
-                    preOpenSeen = true;
-                    continue;
-                }
-                return (true, preOpenSeen, eventTime);
-            } catch {
+            (bool ok, bytes memory ret) = decoder.staticcall(decodeCall);
+            // A compliant (int256, uint64) return is exactly two words.
+            if (!ok || ret.length != 64) continue;
+            (int256 value, uint256 rawEventTime) = abi.decode(ret, (int256, uint256));
+            // A Solidity decoder zero-pads its uint64; dirty high bits mean the answer
+            // came from something that is not the attested decoder shape.
+            if (rawEventTime > type(uint64).max) continue;
+            // forge-lint: disable-next-line(unsafe-typecast)
+            uint64 eventTime = uint64(rawEventTime);
+            if (eventTime < config.sourceWindowOpen) {
+                preOpenSeen = true;
                 continue;
             }
+            // Siblings share the log, so shape-level occurredAt extraction agrees
+            // across their decoders; the first RESOLVED market's reading is the
+            // event's — an ordering fixed by on-chain creation order, never by the
+            // caller, so `pnpm rebuild` reproduces it (AD-8) [review 2026-09-02].
+            if (!anyResolved) occurredAt = eventTime;
+            leagueCore.resolve(markets[i], value, eventTime);
+            anyResolved = true;
         }
-        return (false, preOpenSeen, 0);
     }
 }

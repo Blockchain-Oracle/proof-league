@@ -59,7 +59,9 @@ contract PickLeafConformanceTest is Test {
             assertEq(
                 league.hashPickLeaf(chainId, verifyingContract, pick),
                 digest,
-                string.concat("digest mismatch: ", json.readString(string.concat(".vectors[", vm.toString(i), "].name")))
+                string.concat(
+                    "digest mismatch: ", json.readString(string.concat(".vectors[", vm.toString(i), "].name"))
+                )
             );
         }
     }

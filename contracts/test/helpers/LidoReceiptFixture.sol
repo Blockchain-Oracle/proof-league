@@ -41,12 +41,7 @@ library LidoReceiptFixture {
 
     function data() internal pure returns (bytes memory) {
         return abi.encode(
-            TIME_ELAPSED,
-            PRE_TOTAL_SHARES,
-            PRE_TOTAL_ETHER,
-            POST_TOTAL_SHARES,
-            POST_TOTAL_ETHER,
-            SHARES_MINTED_AS_FEES
+            TIME_ELAPSED, PRE_TOTAL_SHARES, PRE_TOTAL_ETHER, POST_TOTAL_SHARES, POST_TOTAL_ETHER, SHARES_MINTED_AS_FEES
         );
     }
 

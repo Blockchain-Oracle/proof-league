@@ -9,11 +9,7 @@ import {EvmV1Decoder} from "@gluwa/usc-contracts/contracts/write-ability/common/
 library TxBytesCodec {
     /// Type-2 shape: three chunks. The gateway reads only the type byte, the chunk count
     /// and the receipt chunk, so the tx-field chunks carry inert zeros / empty bytes.
-    function encode(uint8 receiptStatus, EvmV1Decoder.LogEntry[] memory logs)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function encode(uint8 receiptStatus, EvmV1Decoder.LogEntry[] memory logs) internal pure returns (bytes memory) {
         bytes[] memory chunks = new bytes[](3);
         chunks[0] = abi.encode(uint64(0), uint64(0), address(0), false, address(0), uint256(0), bytes(""));
         chunks[1] = bytes("");

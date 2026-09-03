@@ -39,14 +39,29 @@ enum MarketState {
     Voided
 }
 
-/// LeagueCore — the market registry (Story 2.1 slice).
-/// Sole minter of marketId; holds each Market's immutable config and the sourceKey index
-/// the AD-4 fan-out will walk. Deliberately exposes no owner, no upgrade path and no
-/// config mutator: the remedy for a broken market is redeploy + rebuild (AD-13, AD-20).
+/// LeagueCore — the market registry and settlement ledger (Stories 2.1-2.4).
+/// Sole minter of marketId; holds each Market's immutable config, the sourceKey index
+/// the AD-4 fan-out walks, and each Market's terminal Resolution. Deliberately exposes
+/// no owner, no upgrade path and no config mutator: the remedy for a broken market is
+/// redeploy + rebuild (AD-13, AD-20). Deployed BY its ProofGateway's constructor
+/// [decision 2026-09-03]: the deployer is recorded as the one resolver, so the mutual
+/// reference is born atomic — no address prediction, no setter to mis-wire. Off-chain
+/// config therefore points at the GATEWAY address only and derives this contract from
+/// gateway.leagueCore() — a core configured independently could have any deployer as
+/// its resolver, which no constructor check can refuse (the deploying gateway has no
+/// code yet while this constructor runs) [review 2026-09-03].
 contract LeagueCore {
     // Mirrors MIN_COMMIT_MARGIN_SEC in packages/shared/src/time.ts (AD-14): an unusably
     // thin commit window is unrepresentable on-chain.
     uint64 public constant MIN_COMMIT_MARGIN = 300;
+
+    // AD-4's decode-gas ceiling made structural [review 2026-09-03]: the resolution
+    // fan-out settles every market on a key in ONE transaction, so the per-key index is
+    // capped at admission — a key can never accumulate more siblings than one verify
+    // can afford, and the cap is stateful chain admission (like born-locked), so the
+    // zod config mirror cannot and does not check it. 16 leaves generous room per
+    // event family (Lido ships two readings) at well under 4M gas of fan-out.
+    uint256 public constant MAX_MARKETS_PER_SOURCE_KEY = 16;
 
     // EIP-712 (AD-5). The domain name/version mirror PICK_DOMAIN_NAME/VERSION in
     // packages/shared/src/pick.ts; the typehash string must match viem's derivation of
@@ -77,9 +92,16 @@ contract LeagueCore {
     error UnorderedBoundaries();
     error BoundaryCountOutOfRange();
     error PayoutOptionMismatch();
+    error NotProofGateway();
+    error MarketNotResolvable();
+    error NotResolved();
+    error SourceKeyFull();
 
     event MarketCreated(uint256 indexed marketId, bytes32 indexed sourceKey, MarketConfig config);
     event PicksCommitted(uint256 indexed marketId, bytes32 root, string uri, bytes32 sha256Hash);
+    event MarketResolved(
+        uint256 indexed marketId, bytes32 indexed sourceKey, int256 value, uint8 winningOption, uint64 occurredAt
+    );
 
     /// The merkle commitment binding a market's published pick-set file (AD-5): the root the
     /// scoring proofs open against, plus the dual-homed file's uri and sha256 so the exact
@@ -90,6 +112,18 @@ contract LeagueCore {
         bytes32 sha256Hash;
         uint64 committedAt;
         string uri;
+    }
+
+    /// One Market's terminal answer (AD-4, FR-16): the decoded value on the boundaries'
+    /// 1e18 scale, the option it lands in, the source event's own declared time, and the
+    /// chain-head time of settlement. Together with the config already emitted at
+    /// creation (boundaries, decoderId), this is the proof panel's and `pnpm rebuild`'s
+    /// full derivation record.
+    struct Resolution {
+        int256 value;
+        uint64 occurredAt;
+        uint64 resolvedAt;
+        uint8 winningOption;
     }
 
     /// One signed Pick, exactly the EIP-712 message schema in packages/shared/src/pick.ts
@@ -110,12 +144,22 @@ contract LeagueCore {
     // on the proof budget, AD-21).
     mapping(address => bool) public isMarketCreator;
 
+    // The one address allowed to resolve (AD-4, AD-20): the deployer, immutable. For
+    // the canonical core — always discovered via ProofGateway.leagueCore(), never
+    // deployed directly — that deployer IS the gateway, so the resolver can never be
+    // repointed at something that skips the seven checks. A directly-deployed core
+    // records whatever deployed it (the unit tests use exactly this); the guarantee is
+    // a property of the gateway-deploys-core procedure plus the header's config rule,
+    // not of this field alone [review 2026-09-03].
+    address public immutable proofGateway;
+
     uint256 public marketCount;
     mapping(uint256 => MarketConfig) private _configs;
     mapping(uint256 => MarketState) private _states;
     // Built at creation so resolution never takes a caller-supplied market list (AD-4).
     mapping(bytes32 => uint256[]) private _marketsBySourceKey;
     mapping(uint256 => PickCommitment) private _commitments;
+    mapping(uint256 => Resolution) private _resolutions;
 
     constructor(address[] memory creators) {
         // With no post-deploy fix path (AD-20), a creator-less or zero-entry deployment
@@ -125,6 +169,7 @@ contract LeagueCore {
             if (creators[i] == address(0)) revert InvalidCreatorSet();
             isMarketCreator[creators[i]] = true;
         }
+        proofGateway = msg.sender;
     }
 
     /// Sole minter of marketId (AD-3). Validates the admission structure so FR-6 rules
@@ -162,10 +207,14 @@ contract LeagueCore {
         }
         if (uint256(config.payoutN) != thresholds + 1) revert PayoutOptionMismatch();
 
+        bytes32 sourceKey = sourceKeyOf(config);
+        // The fan-out gas ceiling (AD-4): admission is where the loop bound is enforced,
+        // because verify takes no market list to page with.
+        if (_marketsBySourceKey[sourceKey].length >= MAX_MARKETS_PER_SOURCE_KEY) revert SourceKeyFull();
+
         marketId = ++marketCount;
         _configs[marketId] = config;
         _states[marketId] = MarketState.Created;
-        bytes32 sourceKey = sourceKeyOf(config);
         _marketsBySourceKey[sourceKey].push(marketId);
         emit MarketCreated(marketId, sourceKey, config);
     }
@@ -195,6 +244,52 @@ contract LeagueCore {
         _commitments[marketId] =
             PickCommitment({root: root, sha256Hash: sha256Hash, committedAt: committedAt, uri: uri});
         emit PicksCommitted(marketId, root, uri, sha256Hash);
+    }
+
+    /// The fan-out's per-market landing (Story 2.4, AD-4): gateway-only, Committed-only,
+    /// terminal. The winning option is computed here from the market's own immutable
+    /// boundaries — the gateway hands over the decoded value and chooses nothing, and no
+    /// ABI anywhere carries an outcome across this boundary in either direction (AD-20);
+    /// the answer lives only in the stored Resolution and its event.
+    function resolve(uint256 marketId, int256 value, uint64 occurredAt) external {
+        if (msg.sender != proofGateway) revert NotProofGateway();
+        _requireKnown(marketId);
+        // The monotone machine (AD-19): Created never resolves (commitment precedes
+        // knowability, AD-14) and Resolved/Voided are terminal, so re-resolution is
+        // unrepresentable, not just forbidden.
+        if (_states[marketId] != MarketState.Committed) revert MarketNotResolvable();
+        MarketConfig memory config = _configs[marketId];
+        uint8 winningOption = winningOptionOf(value, config.boundaries);
+        _states[marketId] = MarketState.Resolved;
+        // Chain-head time is the one deciding clock (AD-10); uint64 narrowing is safe
+        // for any realistic chain time.
+        // forge-lint: disable-start(block-timestamp)
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint64 resolvedAt = uint64(block.timestamp);
+        // forge-lint: disable-end(block-timestamp)
+        _resolutions[marketId] =
+            Resolution({value: value, occurredAt: occurredAt, resolvedAt: resolvedAt, winningOption: winningOption});
+        emit MarketResolved(marketId, sourceKeyOf(config), value, winningOption, occurredAt);
+    }
+
+    /// The total value->option mapping (FR-7 honesty): N-1 strictly ascending thresholds
+    /// carve N buckets with open-ended outer ones, each threshold the INCLUSIVE lower
+    /// edge of the bucket above it — option i wins exactly when
+    /// boundaries[i-1] <= value < boundaries[i]. Mirrored by winningOptionIndex in
+    /// packages/shared/src/outcome.ts; the emitted resolution lets `pnpm rebuild` diff
+    /// the two planes (AD-8).
+    function winningOptionOf(int256 value, int256[] memory boundaries) public pure returns (uint8) {
+        // Public as the canonical mapper, so the admission bound is enforced here too:
+        // past 255 thresholds the uint8 narrowing below would silently wrap for an
+        // unvalidated caller-supplied array [review 2026-09-03].
+        if (boundaries.length < 1 || boundaries.length > 5) revert BoundaryCountOutOfRange();
+        uint256 crossed;
+        for (uint256 i = 0; i < boundaries.length; i++) {
+            if (value >= boundaries[i]) crossed++;
+        }
+        // Never truncates: the guard above caps thresholds at 5.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint8(crossed);
     }
 
     /// The canonical merkle leaf of one signed Pick: its full EIP-712 digest, domain
@@ -228,10 +323,9 @@ contract LeagueCore {
     }
 
     /// The AD-4 fan-out key: one accepted proof settles every market indexed here.
-    function sourceKeyOf(MarketConfig calldata config) public pure returns (bytes32) {
-        return keccak256(
-            abi.encode(config.sourceChainKey, config.emitter, config.eventSignature, config.subjectFilter)
-        );
+    /// Memory, not calldata, so resolve can key its event from the stored config.
+    function sourceKeyOf(MarketConfig memory config) public pure returns (bytes32) {
+        return keccak256(abi.encode(config.sourceChainKey, config.emitter, config.eventSignature, config.subjectFilter));
     }
 
     function getMarketConfig(uint256 marketId) external view returns (MarketConfig memory) {
@@ -247,6 +341,15 @@ contract LeagueCore {
         _requireKnown(marketId);
         if (_commitments[marketId].committedAt == 0) revert NotCommitted();
         return _commitments[marketId];
+    }
+
+    /// Reverts for an unresolved market rather than returning an all-zero struct: value
+    /// 0 is a legal decoded answer, so silence would be ambiguous (the getPickCommitment
+    /// rule). Keyed on resolvedAt — never 0 for a real resolution.
+    function getResolution(uint256 marketId) external view returns (Resolution memory) {
+        _requireKnown(marketId);
+        if (_resolutions[marketId].resolvedAt == 0) revert NotResolved();
+        return _resolutions[marketId];
     }
 
     function stateOf(uint256 marketId) external view returns (MarketState) {

@@ -21,8 +21,8 @@ contract ProofGatewayRegistryTest is Test {
     function setUp() public {
         address[] memory ops = new address[](1);
         ops[0] = OPERATOR;
-        league = new LeagueCore(ops);
-        gateway = new ProofGateway(league, ops);
+        gateway = new ProofGateway(ops, ops);
+        league = gateway.leagueCore();
         // Minimal bytecode so the fixture addresses pass the codeless-decoder refusal
         // [review 2026-09-02]; registry tests only exercise bookkeeping, never decode().
         vm.etch(DECODER_A, hex"00");
@@ -84,25 +84,39 @@ contract ProofGatewayRegistryTest is Test {
         gateway.decoderOf(2);
     }
 
-    // ---- constructor refusals: no post-deploy fix path exists (AD-20) ----
+    // ---- constructor refusals and wiring: no post-deploy fix path exists (AD-20) ----
 
     function test_constructor_rejectsEmptyRegistrarSet() public {
+        address[] memory ops = new address[](1);
+        ops[0] = OPERATOR;
         vm.expectRevert(ProofGateway.InvalidRegistrarSet.selector);
-        new ProofGateway(league, new address[](0));
+        new ProofGateway(ops, new address[](0));
     }
 
     function test_constructor_rejectsZeroRegistrarEntry() public {
+        address[] memory ops = new address[](1);
+        ops[0] = OPERATOR;
         address[] memory regs = new address[](2);
         regs[0] = OPERATOR;
         regs[1] = address(0);
         vm.expectRevert(ProofGateway.InvalidRegistrarSet.selector);
-        new ProofGateway(league, regs);
+        new ProofGateway(ops, regs);
     }
 
-    function test_constructor_rejectsZeroLeagueCore() public {
+    /// Creator-set refusals live in LeagueCore's constructor and bubble up through the
+    /// gateway's `new` — a creator-less deployment of the pair is refused as one unit.
+    function test_constructor_rejectsEmptyCreatorSetFromLeagueCore() public {
         address[] memory regs = new address[](1);
         regs[0] = OPERATOR;
-        vm.expectRevert(ProofGateway.ZeroLeagueCore.selector);
-        new ProofGateway(LeagueCore(address(0)), regs);
+        vm.expectRevert(LeagueCore.InvalidCreatorSet.selector);
+        new ProofGateway(new address[](0), regs);
+    }
+
+    /// The 2026-09-03 wiring decision, held both ways: the gateway deployed the core in
+    /// its constructor, and the core recorded that gateway as its one resolver — the
+    /// mutual reference exists from the first block with no setter to mis-wire.
+    function test_constructor_gatewayAndCoreReferenceEachOtherAtomically() public view {
+        assertEq(league.proofGateway(), address(gateway));
+        assertEq(address(gateway.leagueCore()), address(league));
     }
 }

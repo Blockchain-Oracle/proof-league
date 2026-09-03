@@ -17,5 +17,9 @@ via_ir = true
 # forge-std ships code under src/; the explicit remapping keeps the canonical
 # "forge-std/Test.sol" import path (auto-remap would point at the package root).
 remappings = ["forge-std/=node_modules/forge-std/src/"]
-# Read-only, single-file: the EIP-712 conformance suite re-derives the shared vectors (AD-5).
-fs_permissions = [{ access = "read", path = "../packages/shared/src/eip712-vectors.json" }]
+# Read-only, per-fixture: the conformance suites re-derive the shared vectors — EIP-712
+# leaves (AD-5) and the outcome bucket map (AD-8) — from the same files the TS mirrors use.
+fs_permissions = [
+    { access = "read", path = "../packages/shared/src/eip712-vectors.json" },
+    { access = "read", path = "../packages/shared/src/outcome-vectors.json" },
+]

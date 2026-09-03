@@ -1,0 +1,54 @@
+{
+  "description": "Outcome-mapping conformance vectors (AD-4/AD-8, FR-7): value -> winning option under the half-open bucket rule (each threshold is the inclusive lower edge of the bucket above it). Consumed by BOTH planes — packages/shared outcome.selftest.ts (winningOptionIndex) and contracts/test/LeagueCoreResolve.t.sol (LeagueCore.winningOptionOf) — so edge-semantics drift fails CI instead of surfacing in a live rebuild diff. Values and boundaries are 1e18 fixed-point int256 decimal strings. The reference vector is the blind-verified 2026-08-22 Lido receipt figure against the gateway suites' single 2.30% threshold.",
+  "count": 8,
+  "vectors": [
+    {
+      "name": "negative rebase lands in the bottom bucket",
+      "value": "-1000000000000000000",
+      "boundaries": ["22000000000000000", "22500000000000000", "23000000000000000", "23500000000000000"],
+      "expected": 0
+    },
+    {
+      "name": "one wei-of-yield below the first threshold",
+      "value": "21999999999999999",
+      "boundaries": ["22000000000000000", "22500000000000000", "23000000000000000", "23500000000000000"],
+      "expected": 0
+    },
+    {
+      "name": "exactly on a threshold takes the upper bucket",
+      "value": "22000000000000000",
+      "boundaries": ["22000000000000000", "22500000000000000", "23000000000000000", "23500000000000000"],
+      "expected": 1
+    },
+    {
+      "name": "between thresholds",
+      "value": "22800000000000000",
+      "boundaries": ["22000000000000000", "22500000000000000", "23000000000000000", "23500000000000000"],
+      "expected": 2
+    },
+    {
+      "name": "exactly on the third threshold",
+      "value": "23000000000000000",
+      "boundaries": ["22000000000000000", "22500000000000000", "23000000000000000", "23500000000000000"],
+      "expected": 3
+    },
+    {
+      "name": "exactly on the last threshold: top bucket",
+      "value": "23500000000000000",
+      "boundaries": ["22000000000000000", "22500000000000000", "23000000000000000", "23500000000000000"],
+      "expected": 4
+    },
+    {
+      "name": "open-ended above",
+      "value": "1000000000000000000",
+      "boundaries": ["22000000000000000", "22500000000000000", "23000000000000000", "23500000000000000"],
+      "expected": 4
+    },
+    {
+      "name": "reference receipt 2.3785% vs the 2.30% threshold",
+      "value": "23785407967424491",
+      "boundaries": ["23000000000000000"],
+      "expected": 1
+    }
+  ]
+}

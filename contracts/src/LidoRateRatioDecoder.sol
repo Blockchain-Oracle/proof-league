@@ -52,10 +52,9 @@ contract LidoRateRatioDecoder is IProofDecoder {
         if (preShares == 0 || preEther == 0 || postShares == 0 || postEther == 0) {
             revert DegenerateRebaseReport();
         }
-        if (
-            preShares >= MAX_TOTAL || preEther >= MAX_TOTAL || postShares >= MAX_TOTAL
-                || postEther >= MAX_TOTAL
-        ) revert DegenerateRebaseReport();
+        if (preShares >= MAX_TOTAL || preEther >= MAX_TOTAL || postShares >= MAX_TOTAL || postEther >= MAX_TOTAL) {
+            revert DegenerateRebaseReport();
+        }
 
         // Cross-multiplied rate ratio: sign from the product comparison (negative rebase
         // is legal — boundaries are int256), magnitude in 512-bit mulDiv so nothing

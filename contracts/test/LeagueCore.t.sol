@@ -1,55 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Test} from "forge-std/Test.sol";
 import {LeagueCore, MarketConfig, MarketState} from "../src/LeagueCore.sol";
+import {LeagueCoreTestBase} from "./helpers/LeagueCoreTestBase.sol";
 
 /// Story 2.1 — LeagueCore market registry: sole-minted marketId, immutable config,
 /// admission structure enforced on-chain (AD-3, AD-14, AD-19, FR-6), no privileged
-/// mutation path (AD-20, NFR-5).
-contract LeagueCoreTest is Test {
-    LeagueCore internal league;
-
-    address internal constant OPERATOR = address(0xA11CE);
-    address internal constant WORKER = address(0xB0B);
-    address internal constant STRANGER = address(0xBAD);
-    // Fixed chain-time origin so every admission window in the tests is explicit.
-    uint64 internal constant T0 = 1_756_000_000;
-
-    function setUp() public {
-        vm.warp(T0);
-        address[] memory creators = new address[](2);
-        creators[0] = OPERATOR;
-        creators[1] = WORKER;
-        league = new LeagueCore(creators);
-    }
-
-    /// Baseline admissible config: 5 Outcome Options = 4 ordered internal thresholds
-    /// (open-ended outer buckets keep the value->option mapping total), yields as 1e18
-    /// fixed-point fractions, commit window exactly MIN_COMMIT_MARGIN wide so the
-    /// boundary case is proven admissible.
-    function _validConfig() internal view returns (MarketConfig memory c) {
-        int256[] memory b = new int256[](4);
-        b[0] = 22e15; // 2.20% APR
-        b[1] = 225e14; // 2.25%
-        b[2] = 23e15; // 2.30%
-        b[3] = 235e14; // 2.35%
-        c = MarketConfig({
-            sourceChainKey: 3, // Ethereum mainnet per the day-1 spike probe
-            emitter: address(0x17144556fd3424EDC8Fc8A4C940B2D04936d17eb),
-            eventSignature: keccak256("TokenRebased(uint256,uint256,uint256,uint256,uint256,uint256,uint256)"),
-            subjectFilter: bytes32(0),
-            decoderId: 1,
-            payoutN: 5,
-            leagueDay: 1,
-            lockTime: T0 + 1 hours,
-            sourceWindowOpen: T0 + 1 hours + league.MIN_COMMIT_MARGIN(),
-            voidDeadline: T0 + 1 hours + league.MIN_COMMIT_MARGIN() + 24 hours,
-            determinismHorizon: T0 + 1 hours + league.MIN_COMMIT_MARGIN(),
-            boundaries: b
-        });
-    }
-
+/// mutation path (AD-20, NFR-5). Harness and baseline config live in
+/// LeagueCoreTestBase [review 2026-09-03]; resolve tests in LeagueCoreResolve.t.sol.
+contract LeagueCoreTest is LeagueCoreTestBase {
     function _configHash(uint256 marketId) internal view returns (bytes32) {
         return keccak256(abi.encode(league.getMarketConfig(marketId)));
     }
@@ -201,7 +160,9 @@ contract LeagueCoreTest is Test {
         c.boundaries = new int256[](6); // 7 options exceeds the Glossary's 2-6
         // casting to 'int256' is safe: i + 1 never exceeds 6
         // forge-lint: disable-next-line(unsafe-typecast)
-        for (uint256 i = 0; i < 6; i++) c.boundaries[i] = int256(i + 1);
+        for (uint256 i = 0; i < 6; i++) {
+            c.boundaries[i] = int256(i + 1);
+        }
         c.payoutN = 7;
         vm.prank(OPERATOR);
         vm.expectRevert(LeagueCore.BoundaryCountOutOfRange.selector);
@@ -259,6 +220,26 @@ contract LeagueCoreTest is Test {
         league.createMarket(c);
     }
 
+    /// AD-4's decode-gas ceiling is admission-enforced [review 2026-09-03]: the fan-out
+    /// settles a whole key in one tx and takes no market list to page with, so the
+    /// 17th sibling is refused at creation — an unsettleable key is unrepresentable.
+    function test_createMarket_revertsWhenSourceKeyFull() public {
+        MarketConfig memory c = _validConfig();
+        vm.startPrank(OPERATOR);
+        for (uint32 i = 0; i < league.MAX_MARKETS_PER_SOURCE_KEY(); i++) {
+            c.decoderId = i + 1; // decoderId is not part of the key: same-key siblings
+            league.createMarket(c);
+        }
+        vm.expectRevert(LeagueCore.SourceKeyFull.selector);
+        league.createMarket(c);
+        vm.stopPrank();
+        // A DIFFERENT key is untouched by the full one.
+        MarketConfig memory other = _validConfig();
+        other.subjectFilter = bytes32(uint256(1));
+        vm.prank(OPERATOR);
+        league.createMarket(other);
+    }
+
     // ---- AC 3: immutable thereafter, no privileged path ----
 
     function test_configUntouchedByLaterCreations() public {
@@ -273,10 +254,10 @@ contract LeagueCoreTest is Test {
         assertEq(_configHash(1), before);
     }
 
-    /// Tripwire, not proof: the real guarantee is the ABI surface itself (createMarket and
-    /// commitPicks are the only state-changing functions shipped so far). The probe raw-calls
-    /// the admin selectors a privileged design would have grown and asserts none exists and
-    /// nothing moved (AD-20).
+    /// Tripwire, not proof: the real guarantee is the ABI surface itself (createMarket,
+    /// commitPicks and the gateway-gated resolve are the only state-changing functions
+    /// shipped so far). The probe raw-calls the admin selectors a privileged design would
+    /// have grown and asserts none exists and nothing moved (AD-20).
     function test_noPrivilegedMutationPath() public {
         MarketConfig memory c = _validConfig();
         vm.prank(OPERATOR);
@@ -314,16 +295,6 @@ contract LeagueCoreTest is Test {
     }
 
     // ---- Story 2.2 AC 1: commitPicks — windowed, creator-gated, monotone (AD-14, FR-9) ----
-
-    bytes32 internal constant ROOT = keccak256("pickset-root");
-    bytes32 internal constant SHA = keccak256("pickset-file-bytes");
-    string internal constant URI = "picksets/1-4f2a.json";
-
-    function _createdMarket() internal returns (uint256 id, MarketConfig memory c) {
-        c = _validConfig();
-        vm.prank(OPERATOR);
-        id = league.createMarket(c);
-    }
 
     /// The lower bound is inclusive: committing exactly at lockTime is legal, stores the
     /// commitment verbatim, flips Created -> Committed and leaves the config untouched.

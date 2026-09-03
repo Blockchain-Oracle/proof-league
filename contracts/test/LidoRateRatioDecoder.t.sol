@@ -25,8 +25,7 @@ contract LidoRateRatioDecoderTest is Test {
     // ---- AC: the decoded reference receipt reproduces the blind-verified 2.3785% ----
 
     function test_decode_reproducesBlindVerifiedReferenceApr() public view {
-        (int256 value, uint64 occurredAt) =
-            decoder.decode(LidoReceiptFixture.topics(), LidoReceiptFixture.data());
+        (int256 value, uint64 occurredAt) = decoder.decode(LidoReceiptFixture.topics(), LidoReceiptFixture.data());
         assertEq(value, LidoReceiptFixture.EXPECTED_VALUE_1E18);
         assertEq(_percent4dp(value), 23785); // 2.3785%
         assertEq(occurredAt, uint64(LidoReceiptFixture.REPORT_TIMESTAMP));
