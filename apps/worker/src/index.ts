@@ -1,8 +1,15 @@
-import { DEPLOYED, readEndpoints } from "@proof-league/chain";
-import { cc3Clients, readWorkerKey } from "./cc3.js";
+import { logger } from "./logger.js";
+import { DEPLOYED, proofGatewayAbi, readEndpoints } from "@proof-league/chain";
+import { cc3Clients, readWorkerAccounts, readWorkerKey } from "./cc3.js";
 import { startLoop } from "./loop.js";
 import { startHealthServer } from "./health.js";
 import { runVoidRound } from "./void-round.js";
+import { runSeasonRound } from "./season-round.js";
+import { runSettlementRound } from "./pipeline/settlement-round.js";
+import type { SettlementContext } from "./pipeline/types.js";
+import { FileTransparencyProjection, PostgresTransparencyProjection } from "./pipeline/project.js";
+import { resolveSources } from "./sources.js";
+import { StateStore, readStateDir } from "./state.js";
 
 // Boot validates config before anything runs (CONVENTIONS §9): a misconfigured worker must
 // refuse to start, not settle against the wrong endpoints.
@@ -11,22 +18,76 @@ const HEALTH_PORT = Number(process.env.PORT ?? 8080);
 
 startHealthServer(HEALTH_PORT);
 
-const leagueCore = DEPLOYED.leagueCore;
-if (leagueCore === undefined) {
+const gateway = DEPLOYED.proofGateway;
+if (gateway === undefined) {
   // No deployment yet (Story 5.4 fills packages/chain/src/contracts.ts): nothing exists
-  // to void or settle, so the loop only proves liveness and performs no chain writes.
+  // to settle, void or pay out, so the loop only proves liveness and performs no chain writes.
   startLoop(async () => {});
-  console.log(`[worker] up, no deployed core yet. cc3=${endpoints.CC3_RPC_URL} health=:${HEALTH_PORT}`);
+  logger.info(`[worker] up, no deployed gateway yet. cc3=${endpoints.CC3_RPC_URL} health=:${HEALTH_PORT}`);
 } else {
   // The key is required the moment a deployment is configured — validated at boot, §9.
   const clients = cc3Clients(endpoints.CC3_RPC_URL, readWorkerKey(process.env));
-  startLoop(async () => {
-    // Story 2.6: the AD-19 void duty. Settlement phases (watch -> attest-wait -> prove ->
-    // submit -> project) join this round in Story 2.8.
-    const report = await runVoidRound(leagueCore, clients);
-    if (report.voided.length > 0) {
-      console.log(`[worker] voided markets past deadline: ${report.voided.join(", ")}`);
-    }
+  // The gateway is the one configured address [decision 2026-09-03]: it deployed its own
+  // core, so deriving leagueCore() here is what makes the resolver wiring unforgeable.
+  const core = await clients.publicClient.readContract({
+    address: gateway,
+    abi: proofGatewayAbi,
+    functionName: "leagueCore",
   });
-  console.log(`[worker] up. core=${leagueCore} cc3=${endpoints.CC3_RPC_URL} health=:${HEALTH_PORT}`);
+  const store = new StateStore(readStateDir(process.env));
+  // The transparency projection prefers the database whenever one is configured (the
+  // local Supabase stack in dev, the hosted project in prod — Abu 2026-09-03); the JSONL
+  // file remains the honest degraded mode, and the boot line says which one is live.
+  const databaseUrl = process.env.DATABASE_URL;
+  const projection =
+    databaseUrl !== undefined
+      ? new PostgresTransparencyProjection(databaseUrl, store.dir)
+      : new FileTransparencyProjection(store.dir);
+  logger.info(`[worker] transparency projection: ${databaseUrl !== undefined ? "postgres" : "jsonl file"}`);
+  const ctx: SettlementContext = {
+    gateway,
+    core,
+    clients,
+    sources: await resolveSources(endpoints),
+    store,
+    projection,
+    proverUrl: endpoints.PROVER_URL,
+    accounts: readWorkerAccounts(process.env),
+    webhookUrl: process.env.OPERATOR_WEBHOOK_URL,
+  };
+  startLoop(async () => {
+    // Three duties, sequential (they share one signing account — parallel writes would
+    // race nonces), each isolated so one failing duty never starves the others.
+    try {
+      const settlement = await runSettlementRound(ctx);
+      if (settlement.settledKeys.length > 0) {
+        logger.info(`[worker] settled sourceKeys: ${settlement.settledKeys.join(", ")}`);
+      }
+      if (settlement.stuckKeys.length > 0) {
+        logger.info(`[worker] stuck sourceKeys (honest reasons in transparency log): ${settlement.stuckKeys.join(", ")}`);
+      }
+    } catch (error) {
+      logger.error({ err: error }, "[worker] settlement round failed");
+    }
+    try {
+      // Story 2.6: the AD-19 void duty — also the unblocker the season's all-terminal
+      // gate leans on.
+      const voids = await runVoidRound(core, clients);
+      if (voids.voided.length > 0) {
+        logger.info(`[worker] voided markets past deadline: ${voids.voided.join(", ")}`);
+      }
+    } catch (error) {
+      logger.error({ err: error }, "[worker] void round failed");
+    }
+    try {
+      const season = await runSeasonRound(core, clients, store, process.env.OPERATOR_WEBHOOK_URL);
+      if (season.status !== "idle" && season.status !== "waiting") {
+        logger.info(`[worker] season: ${season.status} ${season.detail ?? ""}`);
+      }
+    } catch (error) {
+      logger.error({ err: error }, "[worker] season round failed");
+    }
+    store.save();
+  });
+  logger.info(`[worker] up. gateway=${gateway} core=${core} cc3=${endpoints.CC3_RPC_URL} health=:${HEALTH_PORT}`);
 }

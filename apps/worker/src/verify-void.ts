@@ -1,5 +1,8 @@
+import { scriptLogger } from "./logger.js";
+
+const log = scriptLogger();
 import { keccak256, parseEventLogs, sha256, stringToHex, zeroHash } from "viem";
-import { DEPLOYED, leagueCoreAbi, readEndpoints } from "@proof-league/chain";
+import { DEPLOYED, leagueCoreAbi, proofGatewayAbi, readEndpoints } from "@proof-league/chain";
 import { CONTRACT_MARKET_STATES, MIN_COMMIT_MARGIN_SEC, utcDayOf } from "@proof-league/shared";
 import { cc3Clients, readWorkerKey, type Cc3Clients } from "./cc3.js";
 
@@ -26,7 +29,7 @@ type MarketConfigArg = {
 };
 
 const fail = (message: string): never => {
-  console.error(`verify:void: ${message}`);
+  log.error(`verify:void: ${message}`);
   process.exit(1);
 };
 
@@ -37,7 +40,7 @@ const waitForChainTime = async (clients: Cc3Clients, targetSec: bigint, label: s
   for (;;) {
     const now = (await clients.publicClient.getBlock()).timestamp;
     if (now >= targetSec) return;
-    console.log(`verify:void: chain at ${now}, waiting for ${label} at ${targetSec}...`);
+    log.info(`verify:void: chain at ${now}, waiting for ${label} at ${targetSec}...`);
     await sleep(5_000);
   }
 };
@@ -61,12 +64,19 @@ const createMarket = async (
 
 const main = async (): Promise<void> => {
   const endpoints = readEndpoints(process.env);
-  const core =
-    DEPLOYED.leagueCore ??
+  // Config points at the gateway only [decision 2026-09-03]: the core is derived from
+  // gateway.leagueCore(), never configured independently.
+  const gateway =
+    DEPLOYED.proofGateway ??
     fail(
-      "no LeagueCore in packages/chain/src/contracts.ts — Story 5.4 wires the live deployment; refusing to fake evidence without one.",
+      "no ProofGateway in packages/chain/src/contracts.ts — Story 5.4 wires the live deployment; refusing to fake evidence without one.",
     );
   const clients = cc3Clients(endpoints.CC3_RPC_URL, readWorkerKey(process.env));
+  const core = await clients.publicClient.readContract({
+    address: gateway,
+    abi: proofGatewayAbi,
+    functionName: "leagueCore",
+  });
   const contract = { address: core, abi: leagueCoreAbi } as const;
 
   const startSec = (await clients.publicClient.getBlock()).timestamp;
@@ -93,7 +103,7 @@ const main = async (): Promise<void> => {
 
   const committedId = await createMarket(clients, core, config);
   const missedId = await createMarket(clients, core, config);
-  console.log(`verify:void: created markets ${committedId} (will commit) and ${missedId} (never commits)`);
+  log.info(`verify:void: created markets ${committedId} (will commit) and ${missedId} (never commits)`);
 
   await waitForChainTime(clients, lockTime, "lockTime");
   // The canonical empty commitment (AD-14): zero-pick markets commit and proceed.
@@ -103,7 +113,7 @@ const main = async (): Promise<void> => {
     args: [committedId, zeroHash, "local:verify-void/empty-set.json", sha256(stringToHex("[]"))],
   });
   await clients.publicClient.waitForTransactionReceipt({ hash: commitHash });
-  console.log(`verify:void: committed empty set to ${committedId}: ${commitHash}`);
+  log.info(`verify:void: committed empty set to ${committedId}: ${commitHash}`);
 
   // The guard, probed live: before the deadline the same call must refuse with the named
   // error (a network hiccup must not pass as evidence), spending no gas.
@@ -119,7 +129,7 @@ const main = async (): Promise<void> => {
     if (!String(error).includes("VoidBeforeDeadline")) {
       return fail(`pre-deadline probe failed for the wrong reason: ${String(error)}`);
     }
-    console.log("verify:void: pre-deadline void correctly refused (VoidBeforeDeadline)");
+    log.info("verify:void: pre-deadline void correctly refused (VoidBeforeDeadline)");
   }
 
   // Strictly past: the first block AFTER the deadline second is the earliest legal void.
@@ -134,9 +144,9 @@ const main = async (): Promise<void> => {
       await clients.publicClient.readContract({ ...contract, functionName: "stateOf", args: [marketId] })
     ];
     if (state !== "Voided") return fail(`market ${marketId} is ${state ?? "unknown"} after void tx ${hash}`);
-    console.log(`verify:void: ${label} landed for market ${marketId}: ${endpoints.EXPLORER_BASE_CC3}/tx/${hash}`);
+    log.info(`verify:void: ${label} landed for market ${marketId}: ${endpoints.EXPLORER_BASE_CC3}/tx/${hash}`);
   }
-  console.log("verify:void: PASS — both AD-19 edges exercised on testnet, early void refused.");
+  log.info("verify:void: PASS — both AD-19 edges exercised on testnet, early void refused.");
 };
 
 void main();

@@ -110,5 +110,12 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    // Abu's standing rule (2026-09-03): structured pino logger, never bare console — bare
+    // console lines carry no level or timestamp and vanish in hosted log shipping. Scoped
+    // to src/: the spike/ scripts are frozen day-1 measurement evidence, not runtime code.
+    files: ["apps/worker/src/**/*.ts"],
+    rules: { "no-console": "error" },
   }
 );

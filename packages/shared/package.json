@@ -5,14 +5,19 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./db": "./db/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
+    "db:migrate": "tsx db/migrate.ts",
     "selftest": "tsx src/pick.selftest.ts && tsx src/config.selftest.ts && tsx src/outcome.selftest.ts && tsx src/pickset-merkle.selftest.ts"
   },
   "dependencies": {
+    "drizzle-orm": "0.45.1",
+    "pino": "^10.3.1",
+    "postgres": "^3.4.9",
     "viem": "^2.56.3",
     "zod": "^4.1.0"
   },

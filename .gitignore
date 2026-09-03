@@ -16,6 +16,9 @@ contracts/broadcast/
 .env.*
 !.env.example
 
+# worker class-2 state (cursors, ledger, transparency JSONL) — operational, never truth (AD-18)
+.worker-state/
+
 # local tooling noise
 .DS_Store
 *.log

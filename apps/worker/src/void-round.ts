@@ -1,3 +1,4 @@
+import { logger } from "./logger.js";
 import type { Address } from "viem";
 import { leagueCoreAbi } from "@proof-league/chain";
 import { CONTRACT_MARKET_STATES, type ContractMarketState } from "@proof-league/shared";
@@ -52,7 +53,7 @@ export const runVoidRound = async (leagueCore: Address, clients: Cc3Clients): Pr
       // One raced market never blocks the rest of the sweep (the fan-out's isolation
       // ethos); the loop's own guard already keeps a thrown round from killing the timer.
       raced.push(marketId);
-      console.error(`[worker] void(${marketId}) did not land`, error);
+      logger.error({ err: error }, `[worker] void(${marketId}) did not land`);
     }
   }
   return { scanned, voided, raced };

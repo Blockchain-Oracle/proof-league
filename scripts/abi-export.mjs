@@ -8,6 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 const EXPORTS = [
   { artifact: "LeagueCore", file: "league-core.ts", name: "leagueCoreAbi" },
   { artifact: "ContestSource", file: "contest-source.ts", name: "contestSourceAbi" },
+  { artifact: "ProofGateway", file: "proof-gateway.ts", name: "proofGatewayAbi" },
 ];
 
 mkdirSync("packages/chain/src/abis", { recursive: true });
