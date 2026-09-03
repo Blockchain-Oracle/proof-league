@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import {StdStorage, stdStorage} from "forge-std/Test.sol";
-import {LeagueCore, MarketConfig, MarketState} from "../src/LeagueCore.sol";
+import {LeagueCore, MarketConfig, MarketState, Resolution} from "../src/LeagueCore.sol";
 import {ProofGateway} from "../src/ProofGateway.sol";
 import {IProofDecoder} from "../src/IProofDecoder.sol";
 import {TxBytesCodec} from "./helpers/TxBytesCodec.sol";
@@ -89,10 +89,10 @@ contract ProofGatewayFanOutTest is GatewayTestBase {
         // Both terminal, each on its own decoder's reading of the same proven words.
         assertEq(uint8(league.stateOf(yieldId)), uint8(MarketState.Resolved));
         assertEq(uint8(league.stateOf(feesId)), uint8(MarketState.Resolved));
-        LeagueCore.Resolution memory yieldRes = league.getResolution(yieldId);
+        Resolution memory yieldRes = league.getResolution(yieldId);
         assertEq(yieldRes.value, LidoReceiptFixture.EXPECTED_VALUE_1E18);
         assertEq(yieldRes.winningOption, 1);
-        LeagueCore.Resolution memory feesRes = league.getResolution(feesId);
+        Resolution memory feesRes = league.getResolution(feesId);
         assertEq(feesRes.value, int256(LidoReceiptFixture.SHARES_MINTED_AS_FEES));
         assertEq(feesRes.winningOption, 2);
         // One budget unit: the whole fan-out consulted the precompile exactly once.

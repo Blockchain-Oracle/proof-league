@@ -3,9 +3,14 @@ import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 const PATTERNS = [
   // Raw EVM private keys are regex-identical to tx hashes and EIP-712 digests, so this pattern
-  // skips docs/ (evidence docs cite tx hashes) and the generated conformance fixture (public
-  // digests; CI's regenerate+diff gate proves it is generator output, never hand-edited).
-  { rx: /0x[0-9a-fA-F]{64}(?![0-9a-fA-F])/, skipDocs: true, skipFiles: ["packages/shared/src/eip712-vectors.json"] },
+  // skips docs/ (evidence docs cite tx hashes) and the generated conformance fixtures (public
+  // digests and merkle nodes; the selftests re-derive both files, proving they are generator
+  // output, never hand-edited).
+  {
+    rx: /0x[0-9a-fA-F]{64}(?![0-9a-fA-F])/,
+    skipDocs: true,
+    skipFiles: ["packages/shared/src/eip712-vectors.json", "packages/shared/src/pickset-vectors.json"],
+  },
   { rx: /sb_secret_[A-Za-z0-9_-]{10,}/ },      // Supabase new-format secret key
   { rx: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/ },
   { rx: /gh[pos]_[A-Za-z0-9]{30,}/ },           // GitHub tokens

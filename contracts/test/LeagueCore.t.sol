@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {LeagueCore, MarketConfig, MarketState} from "../src/LeagueCore.sol";
+import {LeagueCore, MarketConfig, MarketState, PickCommitment} from "../src/LeagueCore.sol";
+import {BoundaryCountOutOfRange} from "../src/LeagueCanon.sol";
 import {LeagueCoreTestBase} from "./helpers/LeagueCoreTestBase.sol";
 
 /// Story 2.1 — LeagueCore market registry: sole-minted marketId, immutable config,
@@ -153,7 +154,7 @@ contract LeagueCoreTest is LeagueCoreTestBase {
         c.boundaries = new int256[](0); // zero thresholds = one option = no market
         c.payoutN = 1;
         vm.prank(OPERATOR);
-        vm.expectRevert(LeagueCore.BoundaryCountOutOfRange.selector);
+        vm.expectRevert(BoundaryCountOutOfRange.selector);
         league.createMarket(c);
 
         c = _validConfig();
@@ -165,7 +166,7 @@ contract LeagueCoreTest is LeagueCoreTestBase {
         }
         c.payoutN = 7;
         vm.prank(OPERATOR);
-        vm.expectRevert(LeagueCore.BoundaryCountOutOfRange.selector);
+        vm.expectRevert(BoundaryCountOutOfRange.selector);
         league.createMarket(c);
     }
 
@@ -308,7 +309,7 @@ contract LeagueCoreTest is LeagueCoreTestBase {
         league.commitPicks(id, ROOT, URI, SHA);
 
         assertEq(uint8(league.stateOf(id)), uint8(MarketState.Committed));
-        LeagueCore.PickCommitment memory got = league.getPickCommitment(id);
+        PickCommitment memory got = league.getPickCommitment(id);
         assertEq(got.root, ROOT);
         assertEq(got.uri, URI);
         assertEq(got.sha256Hash, SHA);

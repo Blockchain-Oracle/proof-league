@@ -10,7 +10,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
-    "selftest": "tsx src/pick.selftest.ts && tsx src/config.selftest.ts && tsx src/outcome.selftest.ts"
+    "selftest": "tsx src/pick.selftest.ts && tsx src/config.selftest.ts && tsx src/outcome.selftest.ts && tsx src/pickset-merkle.selftest.ts"
   },
   "dependencies": {
     "viem": "^2.56.3",

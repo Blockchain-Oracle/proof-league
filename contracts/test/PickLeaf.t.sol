@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {Test} from "forge-std/Test.sol";
 import {stdJson} from "forge-std/StdJson.sol";
-import {LeagueCore} from "../src/LeagueCore.sol";
+import {LeagueCore, Pick} from "../src/LeagueCore.sol";
 
 /// Story 2.2 AC 2 — the canonical abi.encode leaf layout vs packages/shared hashPick (AD-5,
 /// ARCH8). The vectors file's digests are viem's; this suite re-derives every one from
@@ -28,7 +28,7 @@ contract PickLeafConformanceTest is Test {
     function _vector(uint256 i)
         internal
         view
-        returns (uint256 chainId, address verifyingContract, LeagueCore.Pick memory pick, bytes32 digest)
+        returns (uint256 chainId, address verifyingContract, Pick memory pick, bytes32 digest)
     {
         string memory p = string.concat(".vectors[", vm.toString(i), "]");
         chainId = json.readUint(string.concat(p, ".chainId"));
@@ -37,7 +37,7 @@ contract PickLeafConformanceTest is Test {
         // Narrowing casts are safe: the generator writes values already bounded by the
         // EIP-712 schema's field widths, and the ceilings vector exercises each maximum.
         // forge-lint: disable-start(unsafe-typecast)
-        pick = LeagueCore.Pick({
+        pick = Pick({
             player: json.readAddress(string.concat(p, ".pick.player")),
             marketId: json.readUint(string.concat(p, ".pick.marketId")),
             optionIndex: uint8(json.readUint(string.concat(p, ".pick.optionIndex"))),
@@ -55,7 +55,7 @@ contract PickLeafConformanceTest is Test {
         // domain-separation. A shrunken file must fail loudly, not pass emptily.
         assertGe(count, 4, "vectors file lost its armed set");
         for (uint256 i = 0; i < count; i++) {
-            (uint256 chainId, address verifyingContract, LeagueCore.Pick memory pick, bytes32 digest) = _vector(i);
+            (uint256 chainId, address verifyingContract, Pick memory pick, bytes32 digest) = _vector(i);
             assertEq(
                 league.hashPickLeaf(chainId, verifyingContract, pick),
                 digest,
@@ -81,10 +81,10 @@ contract PickLeafConformanceTest is Test {
     /// Perturbing any single field — message or domain — must change the digest, or two
     /// different Picks (or two deployments) could share a leaf.
     function test_hashPickLeaf_everyFieldChangesTheDigest() public view {
-        (uint256 chainId, address verifyingContract, LeagueCore.Pick memory pick, bytes32 digest) =
+        (uint256 chainId, address verifyingContract, Pick memory pick, bytes32 digest) =
             _vector(_representativeIndex());
 
-        LeagueCore.Pick memory m = pick;
+        Pick memory m = pick;
         m.player = address(0xDEAD);
         assertTrue(league.hashPickLeaf(chainId, verifyingContract, m) != digest, "player is dead weight");
         m = pick;

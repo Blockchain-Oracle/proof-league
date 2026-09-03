@@ -2,7 +2,8 @@
 pragma solidity 0.8.28;
 
 import {stdJson} from "forge-std/StdJson.sol";
-import {LeagueCore, MarketConfig, MarketState} from "../src/LeagueCore.sol";
+import {LeagueCore, MarketConfig, MarketState, Resolution} from "../src/LeagueCore.sol";
+import {BoundaryCountOutOfRange} from "../src/LeagueCanon.sol";
 import {LeagueCoreTestBase} from "./helpers/LeagueCoreTestBase.sol";
 
 /// Story 2.4 — LeagueCore.resolve: gateway-only, Committed-only, terminal (AD-4,
@@ -29,7 +30,7 @@ contract LeagueCoreResolveTest is LeagueCoreTestBase {
         // 2.31%: past the 2.20/2.25/2.30 thresholds, short of 2.35 -> option 3 of 0-4.
         league.resolve(id, 231e14, c.sourceWindowOpen + 10);
         assertEq(uint8(league.stateOf(id)), uint8(MarketState.Resolved));
-        LeagueCore.Resolution memory resolution = league.getResolution(id);
+        Resolution memory resolution = league.getResolution(id);
         assertEq(resolution.value, 231e14);
         assertEq(resolution.winningOption, 3);
         assertEq(resolution.occurredAt, c.sourceWindowOpen + 10);
@@ -107,9 +108,9 @@ contract LeagueCoreResolveTest is LeagueCoreTestBase {
     /// callable with arbitrary arrays, and past 255 thresholds the uint8 narrowing
     /// would silently wrap — so out-of-range counts revert by name instead.
     function test_winningOptionOf_revertsOutsideAdmissionBounds() public {
-        vm.expectRevert(LeagueCore.BoundaryCountOutOfRange.selector);
+        vm.expectRevert(BoundaryCountOutOfRange.selector);
         league.winningOptionOf(0, new int256[](0));
-        vm.expectRevert(LeagueCore.BoundaryCountOutOfRange.selector);
+        vm.expectRevert(BoundaryCountOutOfRange.selector);
         league.winningOptionOf(0, new int256[](6));
     }
 

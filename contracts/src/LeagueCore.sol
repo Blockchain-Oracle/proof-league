@@ -1,49 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-/// A Market's full immutable configuration, written before it opens (AD-3). The on-chain
-/// copy is the authority; packages/shared/src/config.ts is its zod mirror.
-/// Outcome Options are encoded as ordered internal thresholds with open-ended outer
-/// buckets: N options = N-1 thresholds, so every decoded value maps to exactly one
-/// option and an out-of-range outcome is unrepresentable (FR-7 honesty).
-struct MarketConfig {
-    // Source identity: which event on which chain settles this Market (check 2 reads
-    // "the right contract on the right chain" — the chainKey is config, never calldata, AD-6).
-    uint64 sourceChainKey;
-    address emitter;
-    bytes32 eventSignature;
-    // Optional indexed-topic filter; zero means the event needs no subject narrowing.
-    bytes32 subjectFilter;
-    // Decoder is an append-only ProofGateway registry id; registering never touches this contract (AD-3).
-    uint32 decoderId;
-    // Payout law (PRD Glossary): gross return = stake x N where N = option count, so N is
-    // structurally bound to boundaries.length + 1 at admission.
-    uint8 payoutN;
-    // Streak/day attribution key (AD-16); never any transaction's timestamp.
-    uint32 leagueDay;
-    uint64 lockTime;
-    uint64 sourceWindowOpen;
-    uint64 voidDeadline;
-    // FR-6 rule 3: lock must fall before the moment the outcome starts being computable.
-    uint64 determinismHorizon;
-    // 1e18 fixed-point thresholds, strictly ascending (yields may be negative: int256).
-    int256[] boundaries;
-}
+import {MarketConfig, MarketState, Pick, PickCommitment, Resolution} from "./LeagueTypes.sol";
+import {BoundaryCountOutOfRange, LeagueCanon} from "./LeagueCanon.sol";
+import {LeagueScoring} from "./LeagueScoring.sol";
 
-/// Exactly the canonical monotone machine (AD-19): Created -> Committed -> Resolved | Voided,
-/// with Created -> Voided a legal edge. Display chips derive off-chain (AD-18).
-enum MarketState {
-    Created,
-    Committed,
-    Resolved,
-    Voided
-}
-
-/// LeagueCore — the market registry and settlement ledger (Stories 2.1-2.4).
+/// LeagueCore — the market registry and settlement ledger (Stories 2.1-2.5).
 /// Sole minter of marketId; holds each Market's immutable config, the sourceKey index
-/// the AD-4 fan-out walks, and each Market's terminal Resolution. Deliberately exposes
-/// no owner, no upgrade path and no config mutator: the remedy for a broken market is
-/// redeploy + rebuild (AD-13, AD-20). Deployed BY its ProofGateway's constructor
+/// the AD-4 fan-out walks, each Market's terminal Resolution, and the scoring state
+/// (LeagueScoring, pre-split per CONVENTIONS §1 — the types live in LeagueTypes.sol and
+/// the pure canonical mappings in LeagueCanon.sol, all inlined internal code, so the
+/// deployed surface is still this one contract). Deliberately exposes no owner, no
+/// upgrade path and no config mutator: the remedy for a broken market is redeploy +
+/// rebuild (AD-13, AD-20). Deployed BY its ProofGateway's constructor
 /// [decision 2026-09-03]: the deployer is recorded as the one resolver, so the mutual
 /// reference is born atomic — no address prediction, no setter to mis-wire. Off-chain
 /// config therefore points at the GATEWAY address only and derives this contract from
@@ -63,17 +32,6 @@ contract LeagueCore {
     // event family (Lido ships two readings) at well under 4M gas of fan-out.
     uint256 public constant MAX_MARKETS_PER_SOURCE_KEY = 16;
 
-    // EIP-712 (AD-5). The domain name/version mirror PICK_DOMAIN_NAME/VERSION in
-    // packages/shared/src/pick.ts; the typehash string must match viem's derivation of
-    // PICK_TYPES field-for-field or the conformance suite goes red.
-    bytes32 private constant DOMAIN_TYPEHASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-    bytes32 private constant DOMAIN_NAME_HASH = keccak256(bytes("ProofLeague"));
-    bytes32 private constant DOMAIN_VERSION_HASH = keccak256(bytes("1"));
-    bytes32 private constant PICK_TYPEHASH = keccak256(
-        "Pick(address player,uint256 marketId,uint8 optionIndex,uint16 stake,uint32 nonce,uint32 utcDay,uint16 stakedSoFarInDay)"
-    );
-
     error UnknownMarket();
     error CommitBeforeLock();
     error CommitWindowClosed();
@@ -90,54 +48,18 @@ contract LeagueCore {
     error ThinCommitWindow();
     error VoidClockNotLongest();
     error UnorderedBoundaries();
-    error BoundaryCountOutOfRange();
     error PayoutOptionMismatch();
     error NotProofGateway();
     error MarketNotResolvable();
     error NotResolved();
     error SourceKeyFull();
+    error MarketNotScorable();
 
     event MarketCreated(uint256 indexed marketId, bytes32 indexed sourceKey, MarketConfig config);
     event PicksCommitted(uint256 indexed marketId, bytes32 root, string uri, bytes32 sha256Hash);
     event MarketResolved(
         uint256 indexed marketId, bytes32 indexed sourceKey, int256 value, uint8 winningOption, uint64 occurredAt
     );
-
-    /// The merkle commitment binding a market's published pick-set file (AD-5): the root the
-    /// scoring proofs open against, plus the dual-homed file's uri and sha256 so the exact
-    /// bytes are pinned on-chain. The canonical empty root is bytes32(0) — state, not the
-    /// root value, is the committed signal.
-    struct PickCommitment {
-        bytes32 root;
-        bytes32 sha256Hash;
-        uint64 committedAt;
-        string uri;
-    }
-
-    /// One Market's terminal answer (AD-4, FR-16): the decoded value on the boundaries'
-    /// 1e18 scale, the option it lands in, the source event's own declared time, and the
-    /// chain-head time of settlement. Together with the config already emitted at
-    /// creation (boundaries, decoderId), this is the proof panel's and `pnpm rebuild`'s
-    /// full derivation record.
-    struct Resolution {
-        int256 value;
-        uint64 occurredAt;
-        uint64 resolvedAt;
-        uint8 winningOption;
-    }
-
-    /// One signed Pick, exactly the EIP-712 message schema in packages/shared/src/pick.ts
-    /// (AD-5). Field order and widths are part of the canonical encoding; the conformance
-    /// suite in test/PickLeaf.t.sol holds the two planes identical.
-    struct Pick {
-        address player;
-        uint256 marketId;
-        uint8 optionIndex;
-        uint16 stake;
-        uint32 nonce;
-        uint32 utcDay;
-        uint16 stakedSoFarInDay;
-    }
 
     // Fixed at construction with no mutator: adding a creator is a redeploy, never a
     // privileged call (AD-20; fully permissionless creation was rejected as a direct DoS
@@ -160,6 +82,9 @@ contract LeagueCore {
     mapping(bytes32 => uint256[]) private _marketsBySourceKey;
     mapping(uint256 => PickCommitment) private _commitments;
     mapping(uint256 => Resolution) private _resolutions;
+    // Story 2.5's ledger (cursor, allowance, aggregates, streak inputs, tie-break
+    // ordinals), owned by LeagueScoring; this contract only assembles contexts.
+    LeagueScoring.State private _scoring;
 
     constructor(address[] memory creators) {
         // With no post-deploy fix path (AD-20), a creator-less or zero-entry deployment
@@ -207,7 +132,7 @@ contract LeagueCore {
         }
         if (uint256(config.payoutN) != thresholds + 1) revert PayoutOptionMismatch();
 
-        bytes32 sourceKey = sourceKeyOf(config);
+        bytes32 sourceKey = LeagueCanon.sourceKeyOf(config);
         // The fan-out gas ceiling (AD-4): admission is where the loop bound is enforced,
         // because verify takes no market list to page with.
         if (_marketsBySourceKey[sourceKey].length >= MAX_MARKETS_PER_SOURCE_KEY) revert SourceKeyFull();
@@ -216,6 +141,10 @@ contract LeagueCore {
         _configs[marketId] = config;
         _states[marketId] = MarketState.Created;
         _marketsBySourceKey[sourceKey].push(marketId);
+        // AD-16's day-completeness input: every admitted market counts against its
+        // leagueDay until terminal, so a never-committed market honestly holds the day
+        // provisional until Story 2.6 voids it.
+        LeagueScoring.noteMarketCreated(_scoring, config.leagueDay);
         emit MarketCreated(marketId, sourceKey, config);
     }
 
@@ -243,6 +172,9 @@ contract LeagueCore {
         _states[marketId] = MarketState.Committed;
         _commitments[marketId] =
             PickCommitment({root: root, sha256Hash: sha256Hash, committedAt: committedAt, uri: uri});
+        // FR-19's tie-break input (AD-16): the dense commit ordinal, minted here so
+        // "earliest commitment appearance" is strict even within one block.
+        LeagueScoring.noteCommitted(_scoring, marketId);
         emit PicksCommitted(marketId, root, uri, sha256Hash);
     }
 
@@ -259,7 +191,7 @@ contract LeagueCore {
         // unrepresentable, not just forbidden.
         if (_states[marketId] != MarketState.Committed) revert MarketNotResolvable();
         MarketConfig memory config = _configs[marketId];
-        uint8 winningOption = winningOptionOf(value, config.boundaries);
+        uint8 winningOption = LeagueCanon.winningOptionOf(value, config.boundaries);
         _states[marketId] = MarketState.Resolved;
         // Chain-head time is the one deciding clock (AD-10); uint64 narrowing is safe
         // for any realistic chain time.
@@ -269,64 +201,67 @@ contract LeagueCore {
         // forge-lint: disable-end(block-timestamp)
         _resolutions[marketId] =
             Resolution({value: value, occurredAt: occurredAt, resolvedAt: resolvedAt, winningOption: winningOption});
-        emit MarketResolved(marketId, sourceKeyOf(config), value, winningOption, occurredAt);
+        emit MarketResolved(marketId, LeagueCanon.sourceKeyOf(config), value, winningOption, occurredAt);
     }
 
-    /// The total value->option mapping (FR-7 honesty): N-1 strictly ascending thresholds
-    /// carve N buckets with open-ended outer ones, each threshold the INCLUSIVE lower
-    /// edge of the bucket above it — option i wins exactly when
-    /// boundaries[i-1] <= value < boundaries[i]. Mirrored by winningOptionIndex in
-    /// packages/shared/src/outcome.ts; the emitted resolution lets `pnpm rebuild` diff
-    /// the two planes (AD-8).
+    /// Story 2.5 (AD-4/AD-15/AD-16): permissionless, exactly-once, budget-capped batch
+    /// scoring against the committed root. Resolved-only: a Voided market's picks never
+    /// surface, and Committed markets still await their proof. batchStart must equal the
+    /// contract-held cursor and (treeRoot, leafCount) must open the stored commitment —
+    /// the full machine, skip lanes and the day/streak ledger live in LeagueScoring.
+    function scoreBatch(
+        uint256 marketId,
+        uint256 batchStart,
+        Pick[] calldata picks,
+        bytes32[][] calldata proofs,
+        uint256 leafCount,
+        bytes32 treeRoot
+    ) external {
+        _requireKnown(marketId);
+        if (_states[marketId] != MarketState.Resolved) revert MarketNotScorable();
+        MarketConfig storage config = _configs[marketId];
+        LeagueScoring.scoreBatch(
+            _scoring,
+            LeagueScoring.ScoreContext({
+                marketId: marketId,
+                committedRoot: _commitments[marketId].root,
+                leagueDay: config.leagueDay,
+                payoutN: config.payoutN,
+                winningOption: _resolutions[marketId].winningOption,
+                // The leaf domain is THIS deployment (AD-5): a pick signed for another
+                // chain or core can never prove into this cursor.
+                chainId: block.chainid,
+                core: address(this)
+            }),
+            batchStart,
+            picks,
+            proofs,
+            leafCount,
+            treeRoot
+        );
+    }
+
+    // -- canonical-mapping wrappers (implementations in LeagueCanon) -----------------
+
+    /// Public as the canonical mapper the conformance suites and `pnpm rebuild` pin.
     function winningOptionOf(int256 value, int256[] memory boundaries) public pure returns (uint8) {
-        // Public as the canonical mapper, so the admission bound is enforced here too:
-        // past 255 thresholds the uint8 narrowing below would silently wrap for an
-        // unvalidated caller-supplied array [review 2026-09-03].
-        if (boundaries.length < 1 || boundaries.length > 5) revert BoundaryCountOutOfRange();
-        uint256 crossed;
-        for (uint256 i = 0; i < boundaries.length; i++) {
-            if (value >= boundaries[i]) crossed++;
-        }
-        // Never truncates: the guard above caps thresholds at 5.
-        // forge-lint: disable-next-line(unsafe-typecast)
-        return uint8(crossed);
+        return LeagueCanon.winningOptionOf(value, boundaries);
     }
 
-    /// The canonical merkle leaf of one signed Pick: its full EIP-712 digest, domain
-    /// included, so a leaf provable under one deployment's root can never verify against
-    /// another's (AD-5). Domain parameters are explicit — scoring (Story 2.8) binds them to
-    /// (block.chainid, address(this)); the conformance suite binds them to the shared
-    /// vectors' recorded domains.
+    /// Public as the canonical leaf encoder the EIP-712 conformance suite pins (ARCH8).
     function hashPickLeaf(uint256 chainId, address verifyingContract, Pick calldata pick)
         public
         pure
         returns (bytes32)
     {
-        bytes32 domainSeparator = keccak256(
-            abi.encode(DOMAIN_TYPEHASH, DOMAIN_NAME_HASH, DOMAIN_VERSION_HASH, chainId, verifyingContract)
-        );
-        // The canonical abi.encode leaf layout (ARCH8): typehash then the seven message
-        // fields in schema order, each padded to a full word.
-        bytes32 structHash = keccak256(
-            abi.encode(
-                PICK_TYPEHASH,
-                pick.player,
-                pick.marketId,
-                pick.optionIndex,
-                pick.stake,
-                pick.nonce,
-                pick.utcDay,
-                pick.stakedSoFarInDay
-            )
-        );
-        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+        return LeagueCanon.hashPickLeaf(chainId, verifyingContract, pick);
     }
 
-    /// The AD-4 fan-out key: one accepted proof settles every market indexed here.
-    /// Memory, not calldata, so resolve can key its event from the stored config.
     function sourceKeyOf(MarketConfig memory config) public pure returns (bytes32) {
-        return keccak256(abi.encode(config.sourceChainKey, config.emitter, config.eventSignature, config.subjectFilter));
+        return LeagueCanon.sourceKeyOf(config);
     }
+
+    // -- views -----------------------------------------------------------------------
 
     function getMarketConfig(uint256 marketId) external view returns (MarketConfig memory) {
         _requireKnown(marketId);
@@ -359,6 +294,53 @@ contract LeagueCore {
 
     function getMarketsBySourceKey(bytes32 sourceKey) external view returns (uint256[] memory) {
         return _marketsBySourceKey[sourceKey];
+    }
+
+    // Scoring ledger reads (Story 2.5): each is the one on-chain answer the Leaderboard,
+    // proof panel and `pnpm rebuild` re-derive against (AD-8). Zero-values are honest
+    // "never scored" answers, so none of these revert on unknown keys.
+    function seasonPointsOf(address player) external view returns (uint256) {
+        return _scoring.seasonPoints[player];
+    }
+
+    function dailySpentOf(address player, uint32 utcDay) external view returns (uint256) {
+        return _scoring.dailySpent[player][utcDay];
+    }
+
+    function dayAggregateOf(address player, uint32 leagueDay)
+        external
+        view
+        returns (LeagueScoring.DayAggregate memory)
+    {
+        return _scoring.dayAggregates[player][leagueDay];
+    }
+
+    function dayMarketsOf(uint32 leagueDay) external view returns (LeagueScoring.DayMarkets memory) {
+        return _scoring.dayMarkets[leagueDay];
+    }
+
+    function playedDaysOf(address player) external view returns (uint32[] memory) {
+        return _scoring.playedDays[player];
+    }
+
+    /// The AD-16 fold, recomputed on every read (which subsumes "on every finalization").
+    function streakOf(address player) external view returns (uint32) {
+        return LeagueScoring.streakOf(_scoring, player);
+    }
+
+    /// FR-19's third tie-break key; 0 = no settled pick yet.
+    function earliestCommitOrdinalOf(address player) external view returns (uint64) {
+        return _scoring.earliestOrdinal[player];
+    }
+
+    function commitOrdinalOf(uint256 marketId) external view returns (uint64) {
+        return _scoring.commitOrdinal[marketId];
+    }
+
+    /// Worker resume point (AD-13) and the exactly-once witness for tests and rebuild.
+    function scoringProgressOf(uint256 marketId) external view returns (uint256 cursor, bool fullyScored) {
+        LeagueScoring.MarketProgress storage prog = _scoring.progress[marketId];
+        return (prog.cursor, prog.fullyScored);
     }
 
     // Ids are dense from 1, so existence is a range check; the zero-value MarketState

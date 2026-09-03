@@ -1,0 +1,126 @@
+{
+  "description": "Pick-set merkle conformance vectors (Story 2.5, AD-4/AD-5): position-bound trees (left||right by index parity, zero-word padding to the next power of two) with size-bound commitment roots keccak256(abi.encode(treeRoot, leafCount)). Consumed by BOTH planes — packages/shared pickset-merkle.selftest.ts and contracts/test/PickSetMerkle.t.sol — so tree-shape drift fails CI instead of surfacing as an unscoreable committed market. Regenerate via src/pickset-vectors.gen.ts; hand-editing breaks the gate by design.",
+  "count": 5,
+  "trees": [
+    {
+      "name": "single-leaf",
+      "leafCount": 1,
+      "leaves": [
+        "0x279e1407479e6d0f1ec7b4229d8f5bb97f87ca428d8811170e96449cf4d1d9d9"
+      ],
+      "treeRoot": "0x279e1407479e6d0f1ec7b4229d8f5bb97f87ca428d8811170e96449cf4d1d9d9",
+      "commitmentRoot": "0x525309fb7006be9f2793b6e88de325b6955db4618dd9931c4596eb4f47963d0b",
+      "proofs": [
+        []
+      ]
+    },
+    {
+      "name": "two-leaves-full",
+      "leafCount": 2,
+      "leaves": [
+        "0x11546c59600bb89f82d59ebcbec070525cd4df3464e52e17128d628254b0fe33",
+        "0xb3fce61bb99d9dfc0123d9e941f19eeca9874c7836334c0553a666a3a41c49d5"
+      ],
+      "treeRoot": "0xa1d93c357682b56c6062d2bca0607878f8a59913c8d5e0848196aa77a6431a3f",
+      "commitmentRoot": "0x80f99b79ac318e7a38979541a896a99503ce238b59dca2697a977d66dc1d1da8",
+      "proofs": [
+        [
+          "0xb3fce61bb99d9dfc0123d9e941f19eeca9874c7836334c0553a666a3a41c49d5"
+        ],
+        [
+          "0x11546c59600bb89f82d59ebcbec070525cd4df3464e52e17128d628254b0fe33"
+        ]
+      ]
+    },
+    {
+      "name": "three-leaves-padded",
+      "leafCount": 3,
+      "leaves": [
+        "0xe529730e1766bb89bcc6741f0bc3b1f6f50d9b774a2cd48e20bcb8259a20c967",
+        "0xa384e4d51956ab35d7e2822aa02760f5a7121ca4e48f3838208eb98e4d9b594c",
+        "0x09956402daf1e769c93033cfeafcd95eefa830d532e954c3c68e7fb64d1934bf"
+      ],
+      "treeRoot": "0x1495790393a2a3eb097c2ea1f339bc21281c98c0b3a20b414b4aae01f034d790",
+      "commitmentRoot": "0x61e0ecff8b7da31b9db395494c39be3ae8cb34db04dee621ffd0901284c27289",
+      "proofs": [
+        [
+          "0xa384e4d51956ab35d7e2822aa02760f5a7121ca4e48f3838208eb98e4d9b594c",
+          "0x36c04fc563b2726c0f8efe3d35b80307719b9c772bea448595bff24d44339af7"
+        ],
+        [
+          "0xe529730e1766bb89bcc6741f0bc3b1f6f50d9b774a2cd48e20bcb8259a20c967",
+          "0x36c04fc563b2726c0f8efe3d35b80307719b9c772bea448595bff24d44339af7"
+        ],
+        [
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0xf4bffe0f65247ee10a2c15efa1b6af22d3c18eaba57e38bd539d2ec0d1874ed8"
+        ]
+      ]
+    },
+    {
+      "name": "five-leaves-padded",
+      "leafCount": 5,
+      "leaves": [
+        "0x9a5c5bd5f07e5df2db435e72b1bb250981ef695a0fa3c59cc3f8a8b9cf7cb8f3",
+        "0x71ea49d869bc8f1bf516dadeb3bfabfe4a5c7c3203f1126690bfe5d1a7961b5a",
+        "0x712dfb3db9ec6b62f12050ddc2efaab92e90127678be744c21208cf611dd1cc7",
+        "0x547bac444ef274d995f89db06d2972b7600d0f0455021bf0d31ebd8434e3a8bb",
+        "0x20df79d7eb25ed59e967daaa77bb1ea89bfdb604ce0c412f85b95908d694d149"
+      ],
+      "treeRoot": "0x925ce003bddc4e6a95e49ec624dd3b1e2852974ba9077cad98c2c369fce93df0",
+      "commitmentRoot": "0xe1f8fdea4c889033f3e889020b367be51859aebad381638d567de6bb9488bbe6",
+      "proofs": [
+        [
+          "0x71ea49d869bc8f1bf516dadeb3bfabfe4a5c7c3203f1126690bfe5d1a7961b5a",
+          "0xd1ac57b5a69924f887d4e99bb7869ebb323d273401778a431ba3a213c61235d0",
+          "0x0efda1daca868da8880ef9a533fd5b56a840d69d342fdb16b226fac47b3654f4"
+        ],
+        [
+          "0x9a5c5bd5f07e5df2db435e72b1bb250981ef695a0fa3c59cc3f8a8b9cf7cb8f3",
+          "0xd1ac57b5a69924f887d4e99bb7869ebb323d273401778a431ba3a213c61235d0",
+          "0x0efda1daca868da8880ef9a533fd5b56a840d69d342fdb16b226fac47b3654f4"
+        ],
+        [
+          "0x547bac444ef274d995f89db06d2972b7600d0f0455021bf0d31ebd8434e3a8bb",
+          "0x4a4bed247a3ad1e32fd45fb437e70cecbe611a90132968b13d7a2581d6e5ff4f",
+          "0x0efda1daca868da8880ef9a533fd5b56a840d69d342fdb16b226fac47b3654f4"
+        ],
+        [
+          "0x712dfb3db9ec6b62f12050ddc2efaab92e90127678be744c21208cf611dd1cc7",
+          "0x4a4bed247a3ad1e32fd45fb437e70cecbe611a90132968b13d7a2581d6e5ff4f",
+          "0x0efda1daca868da8880ef9a533fd5b56a840d69d342fdb16b226fac47b3654f4"
+        ],
+        [
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0xad3228b676f7d3cd4284a5443f17f1962b36e491b30a40b2405849e597ba5fb5",
+          "0x6ca40b52110efcf22aa58ab261564a702332187c8dfcaa82bb97b62dace3dcc0"
+        ]
+      ]
+    },
+    {
+      "name": "real-pick-digests",
+      "leafCount": 3,
+      "leaves": [
+        "0x50fa4097220fe9978591b7ee7fa8908cb1946b70d00964111b0aaf71f1f6fe89",
+        "0x32c54628511701c05e85a904a0b16b18321de95618de3041007d3bea815ffb61",
+        "0x5c1aa3e0d500ec7dc8d31e2d5a439cdb26651ffae06aeb67355b46a840a35bc3"
+      ],
+      "treeRoot": "0x790b382034647380ef94e75b5fad9067b5c06aca068a63a56ad8e9126568dde2",
+      "commitmentRoot": "0x6a75ec0fb8e2e8d24c3f19ec6e9ff69a133eedf915f305faf7b11c84df5ec538",
+      "proofs": [
+        [
+          "0x32c54628511701c05e85a904a0b16b18321de95618de3041007d3bea815ffb61",
+          "0x36e778bc105f7b19987ce5ac2695383a7d78ca194ce4194c436a61c2bb10bf9c"
+        ],
+        [
+          "0x50fa4097220fe9978591b7ee7fa8908cb1946b70d00964111b0aaf71f1f6fe89",
+          "0x36e778bc105f7b19987ce5ac2695383a7d78ca194ce4194c436a61c2bb10bf9c"
+        ],
+        [
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x1d27050cc502f8cbfda40dd1f7af2497908455474fd268762d37241c18ba91b3"
+        ]
+      ]
+    }
+  ]
+}

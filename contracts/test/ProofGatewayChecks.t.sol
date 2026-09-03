@@ -3,7 +3,7 @@ pragma solidity 0.8.28;
 
 import {INativeQueryVerifier} from "@gluwa/usc-contracts/contracts/write-ability/common/INativeQueryVerifier.sol";
 import {EvmV1Decoder} from "@gluwa/usc-contracts/contracts/write-ability/common/EvmV1Decoder.sol";
-import {LeagueCore, MarketConfig, MarketState} from "../src/LeagueCore.sol";
+import {LeagueCore, MarketConfig, MarketState, Resolution} from "../src/LeagueCore.sol";
 import {ProofGateway} from "../src/ProofGateway.sol";
 import {IProofDecoder} from "../src/IProofDecoder.sol";
 import {MockNativeQueryVerifier, AlwaysTrueVerifier} from "./helpers/VerifierMocks.sol";
@@ -54,7 +54,7 @@ contract ProofGatewayChecksTest is GatewayTestBase {
         // Acceptance IS settlement since Story 2.4: the market resolved in the same tx,
         // on the blind-verified decoded value (2.3785% >= the 2.30% threshold -> option 1).
         assertEq(uint8(league.stateOf(marketId)), uint8(MarketState.Resolved));
-        LeagueCore.Resolution memory resolution = league.getResolution(marketId);
+        Resolution memory resolution = league.getResolution(marketId);
         assertEq(resolution.value, LidoReceiptFixture.EXPECTED_VALUE_1E18);
         assertEq(resolution.winningOption, 1);
         assertEq(resolution.occurredAt, uint64(LidoReceiptFixture.REPORT_TIMESTAMP));

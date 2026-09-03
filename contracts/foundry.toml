@@ -22,4 +22,5 @@ remappings = ["forge-std/=node_modules/forge-std/src/"]
 fs_permissions = [
     { access = "read", path = "../packages/shared/src/eip712-vectors.json" },
     { access = "read", path = "../packages/shared/src/outcome-vectors.json" },
+    { access = "read", path = "../packages/shared/src/pickset-vectors.json" },
 ]
