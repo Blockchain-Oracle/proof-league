@@ -10,6 +10,28 @@ Deployment under test unless stated otherwise: ProofGateway
 
 ---
 
+## `verify:void` — 2026-09-03, live deployment
+
+```
+created markets 2 (will commit) and 3 (never commits)
+empty pick-set published and committed to 2:
+  picksets/2-ec38e449cfa1fd9d5c218990eb5adf5b92f1aa90d538f1ae04b0d99c7bdde243.json
+pre-deadline void correctly refused (VoidBeforeDeadline)
+Committed -> Voided landed for market 2:
+  0x667c85c281bfcfa6417f7d65b796e1d9a0d0d4424e9e2aec85450b1c5f15035c
+Created -> Voided landed for market 3:
+  0xa7e244d254e9261ab2a86210f1db724e32bf3d5e5e6d8815450ac89ca205e29a
+PASS — both AD-19 edges exercised on testnet, early void refused.
+```
+
+What this demonstrates: void is a clock fact rather than an operator decision. Called
+before the deadline it refuses by name, and the refusal was probed on-chain rather than
+assumed. Called after, it works from either non-terminal state, including the market that
+missed its commit window entirely, which is the edge that keeps a stalled Market from
+freezing its league day and the season payout behind it.
+
+---
+
 ## `verify:settlement` — 2026-09-03, first live run
 
 Run against the first deployment (gateway `0x6bf6a39c..0d76`), which was replaced later
