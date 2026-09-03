@@ -9,6 +9,7 @@
     "dev": "tsx src/index.ts",
     "rebuild": "tsx src/rebuild.ts",
     "deploy": "tsx src/deploy.ts",
+    "register:series": "tsx src/register-series.ts",
     "verify:commit": "tsx src/verify-commit.ts",
     "verify:void": "tsx src/verify-void.ts",
     "verify:settlement": "tsx src/verify-settlement.ts",
