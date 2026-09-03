@@ -24,6 +24,17 @@ fly deploy --config apps/worker/fly.toml --dockerfile apps/worker/Dockerfile
 Needs: a Fly account with a payment method. Note the secrets list has no escrow key in it,
 and should not.
 
+One thing waits on this beyond the league itself: the Pick intake route's accept path has
+no open Market to be driven against, because no Market exists until the engine mints the
+first Series slot. The moment one is open, with the web app running:
+
+```
+pnpm --filter @proof-league/worker exec tsx spike/intake-probe.ts <openMarketId>
+```
+
+which stores a signed Pick, proves the same nonce twice is one position rather than two,
+and proves a signature covering different values is refused.
+
 If Fly is not happening in time, the honest fallback is running
 `pnpm --filter @proof-league/worker dev` with `.env.local` sourced on a machine that stays
 awake. That is worse in every way except that it works today.

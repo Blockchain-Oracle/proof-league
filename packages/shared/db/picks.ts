@@ -64,3 +64,28 @@ export const listPendingPicks = async (
     signature: row.signature as `0x${string}`,
   }));
 };
+
+/// Every draft one player currently holds on one deployment, in the shape the intake law
+/// reasons over. Not scoped to a market or a day on purpose: the daily allowance is a
+/// running total in nonce order ACROSS markets, so a per-market read could not compute it.
+export const listPlayerDrafts = async (
+  db: Db,
+  verifyingContract: string,
+  player: string,
+): Promise<{ marketId: string; nonce: number; stake: number; utcDay: number }[]> => {
+  const rows = await db
+    .select({
+      marketId: pendingPicks.marketId,
+      nonce: pendingPicks.nonce,
+      stake: pendingPicks.stake,
+      utcDay: pendingPicks.utcDay,
+    })
+    .from(pendingPicks)
+    .where(
+      and(
+        eq(pendingPicks.verifyingContract, verifyingContract.toLowerCase()),
+        eq(pendingPicks.player, player.toLowerCase()),
+      ),
+    );
+  return rows;
+};
