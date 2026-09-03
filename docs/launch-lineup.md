@@ -67,7 +67,7 @@ negative daily. The share-rate ratio is the only correct derivation (research no
 
 The decoder is registered on the live gateway as id 1, and its derivation was
 re-verified independently against 12 consecutive real reports on 2026-09-03 (script:
-`apps/worker/lido-sample.mjs`). The 2026-08-22 report decodes to **2.3785%**, matching
+`apps/worker/spike/lido-band.ts`). The 2026-08-22 report decodes to **2.3785%**, matching
 the blind-verified reference figure in `docs/spike-day1.md` to four decimal places, from
 a separate implementation. Decode feasibility is therefore demonstrated, not assumed.
 
