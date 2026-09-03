@@ -1,0 +1,48 @@
+# The settlement worker on Fly (CONVENTIONS §9). Deploy from the repo ROOT so the build
+# context contains the workspace:
+#
+#   fly launch --no-deploy --dockerfile apps/worker/Dockerfile --config apps/worker/fly.toml
+#   fly secrets set WORKER_PRIVATE_KEY_1=... WORKER_PRIVATE_KEY_2=... WORKER_PRIVATE_KEY_3=... \
+#                   DATABASE_URL=... SUPABASE_URL=... SUPABASE_SERVICE_KEY=... \
+#                   OPERATOR_WEBHOOK_URL=...
+#   fly deploy --config apps/worker/fly.toml --dockerfile apps/worker/Dockerfile
+#
+# The escrow key is deliberately absent from that list and from this file: no service ever
+# loads it (NFR-3), and season funding stays a manual step from the offline account.
+
+app = "proof-league-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  # The worker's cursors, ledger and the JSONL transparency fallback live on the volume,
+  # so a restart resumes mid-pipeline instead of re-detecting (AD-13).
+  WORKER_STATE_DIR = "/data/.worker-state"
+  PICKSET_MIRROR_DIR = "/data/pick-sets"
+
+# Exactly one machine, always on. Two would double-submit transactions from one signing
+# account, and autostop would silence the heartbeat the whole design depends on.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[[mounts]]
+  source = "worker_state"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "30s"
+    timeout = "5s"
+    method = "GET"
+    path = "/health"
