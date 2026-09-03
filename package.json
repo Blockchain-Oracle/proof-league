@@ -16,7 +16,7 @@
     "check:overclaim": "node scripts/overclaim-scan.mjs",
     "build": "pnpm -r --filter './apps/*' --filter './packages/*' run build",
     "rebuild": "node scripts/rebuild-stub.mjs",
-    "verify:commit": "node scripts/verify-stub.mjs commit",
+    "verify:commit": "pnpm --filter @proof-league/worker run verify:commit",
     "verify:void": "pnpm --filter @proof-league/worker run verify:void",
     "verify:settlement": "pnpm --filter @proof-league/worker run verify:settlement",
     "verify:payout": "pnpm --filter @proof-league/worker run verify:payout",

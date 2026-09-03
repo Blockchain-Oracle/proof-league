@@ -1,13 +1,16 @@
 import { logger } from "./logger.js";
 import { DEPLOYED, proofGatewayAbi, readEndpoints } from "@proof-league/chain";
+import { createDb } from "@proof-league/shared/db";
 import { cc3Clients, readWorkerAccounts, readWorkerKey } from "./cc3.js";
 import { startLoop } from "./loop.js";
 import { startHealthServer } from "./health.js";
+import { runCommitRound } from "./commit-round.js";
 import { runVoidRound } from "./void-round.js";
 import { runSeasonRound } from "./season-round.js";
 import { runSettlementRound } from "./pipeline/settlement-round.js";
 import type { SettlementContext } from "./pipeline/types.js";
 import { FileTransparencyProjection, PostgresTransparencyProjection } from "./pipeline/project.js";
+import { PickSetPublisher, readPicksetPublisherConfig } from "./pickset/publish.js";
 import { resolveSources } from "./sources.js";
 import { StateStore, readStateDir } from "./state.js";
 
@@ -38,12 +41,17 @@ if (gateway === undefined) {
   // The transparency projection prefers the database whenever one is configured (the
   // local Supabase stack in dev, the hosted project in prod — Abu 2026-09-03); the JSONL
   // file remains the honest degraded mode, and the boot line says which one is live.
+  // One Db handle serves both duties that touch it: transparency writes and intake reads.
   const databaseUrl = process.env.DATABASE_URL;
+  const database = databaseUrl !== undefined ? createDb(databaseUrl) : undefined;
   const projection =
-    databaseUrl !== undefined
-      ? new PostgresTransparencyProjection(databaseUrl, store.dir)
+    database !== undefined
+      ? new PostgresTransparencyProjection(database.db, store.dir)
       : new FileTransparencyProjection(store.dir);
-  logger.info(`[worker] transparency projection: ${databaseUrl !== undefined ? "postgres" : "jsonl file"}`);
+  const publisher = new PickSetPublisher(readPicksetPublisherConfig(process.env, store.dir));
+  logger.info(
+    `[worker] transparency projection: ${database !== undefined ? "postgres" : "jsonl file"}; pickset storage: ${publisher.storageConfigured ? "supabase+mirror" : "mirror only"}`,
+  );
   const ctx: SettlementContext = {
     gateway,
     core,
@@ -56,8 +64,18 @@ if (gateway === undefined) {
     webhookUrl: process.env.OPERATOR_WEBHOOK_URL,
   };
   startLoop(async () => {
-    // Three duties, sequential (they share one signing account — parallel writes would
-    // race nonces), each isolated so one failing duty never starves the others.
+    // Four duties, sequential (they share one signing account — parallel writes would
+    // race nonces), each isolated so one failing duty never starves the others. Commit
+    // runs FIRST: a market must be Committed before its event fires for settlement to
+    // have anything to settle (AD-14 — commitment precedes knowability).
+    try {
+      const commits = await runCommitRound({ core, clients, db: database?.db, publisher, projection });
+      if (commits.committed.length > 0) {
+        logger.info(`[worker] committed pick-sets for markets: ${commits.committed.join(", ")}`);
+      }
+    } catch (error) {
+      logger.error({ err: error }, "[worker] commit round failed");
+    }
     try {
       const settlement = await runSettlementRound(ctx);
       if (settlement.settledKeys.length > 0) {

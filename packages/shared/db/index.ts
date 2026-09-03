@@ -3,6 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema.js";
 
 export * from "./schema.js";
+export * from "./picks.js";
 
 export type Db = ReturnType<typeof createDb>["db"];
 

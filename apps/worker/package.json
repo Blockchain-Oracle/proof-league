@@ -7,6 +7,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/index.ts",
+    "verify:commit": "tsx src/verify-commit.ts",
     "verify:void": "tsx src/verify-void.ts",
     "verify:settlement": "tsx src/verify-settlement.ts",
     "verify:payout": "tsx src/verify-payout.ts"

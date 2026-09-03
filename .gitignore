@@ -24,3 +24,6 @@ contracts/broadcast/
 *.log
 .vercel
 .turbo
+
+# Pick-set mirror files live on the dedicated data branch, never main (AD-5 data-vs-code policy)
+docs/pick-sets/*.json

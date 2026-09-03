@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { createDb, transparencyObservations, type Db } from "@proof-league/shared/db";
+import { transparencyObservations, type Db } from "@proof-league/shared/db";
 import { logger } from "../logger.js";
 
 // The project phase (AD-7): phase timestamps write to the transparency projection AS EACH
@@ -43,13 +43,14 @@ export class FileTransparencyProjection implements TransparencyProjection {
 
 /// The database adapter (schema owned by packages/shared/db, CONVENTIONS §4). An insert
 /// failure falls back to the JSONL file — an observation, once made, is never lost to a
-/// database hiccup, and the failure itself is logged, never swallowed.
+/// database hiccup, and the failure itself is logged, never swallowed. Takes the boot's
+/// one shared Db handle (Story 2.2 added intake reads beside these writes — one pool).
 export class PostgresTransparencyProjection implements TransparencyProjection {
   private readonly db: Db;
   private readonly fallback: FileTransparencyProjection;
 
-  constructor(databaseUrl: string, stateDir: string) {
-    this.db = createDb(databaseUrl).db;
+  constructor(db: Db, stateDir: string) {
+    this.db = db;
     this.fallback = new FileTransparencyProjection(stateDir);
   }
 

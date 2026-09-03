@@ -3,6 +3,7 @@ export * from "./checks.js";
 export * from "./payout.js";
 export * from "./pick.js";
 export * from "./pickset-merkle.js";
+export * from "./pickset.js";
 export * from "./market-state.js";
 export * from "./outcome.js";
 export * from "./time.js";

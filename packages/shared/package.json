@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit",
     "db:migrate": "tsx db/migrate.ts",
-    "selftest": "tsx src/pick.selftest.ts && tsx src/config.selftest.ts && tsx src/outcome.selftest.ts && tsx src/pickset-merkle.selftest.ts"
+    "selftest": "tsx src/pick.selftest.ts && tsx src/config.selftest.ts && tsx src/outcome.selftest.ts && tsx src/pickset-merkle.selftest.ts && tsx src/pickset.selftest.ts"
   },
   "dependencies": {
     "drizzle-orm": "0.45.1",
