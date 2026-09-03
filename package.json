@@ -21,7 +21,7 @@
     "verify:void": "pnpm --filter @proof-league/worker run verify:void",
     "verify:settlement": "pnpm --filter @proof-league/worker run verify:settlement",
     "verify:payout": "pnpm --filter @proof-league/worker run verify:payout",
-    "verify:hosted-round": "node scripts/verify-stub.mjs hosted-round"
+    "verify:hosted-round": "pnpm --filter @proof-league/worker run verify:hosted-round"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

@@ -13,7 +13,8 @@
     "verify:commit": "tsx src/verify-commit.ts",
     "verify:void": "tsx src/verify-void.ts",
     "verify:settlement": "tsx src/verify-settlement.ts",
-    "verify:payout": "tsx src/verify-payout.ts"
+    "verify:payout": "tsx src/verify-payout.ts",
+    "verify:hosted-round": "tsx src/verify-hosted-round.ts"
   },
   "dependencies": {
     "@gluwa/usc-sdk": "0.18.0",

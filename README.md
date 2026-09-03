@@ -55,6 +55,7 @@ pnpm verify:commit      # sign -> intake -> publish both homes -> commitPicks ->
 pnpm verify:void        # both terminal void edges, and the early-void refusal, by name
 pnpm verify:settlement  # a real Sepolia event -> attest -> prove -> submit -> resolved on CC3
 pnpm verify:payout      # a minutes-long Season on the same bytecode, trigger to pull-payment
+pnpm verify:hosted-round # a full round, create to proof verified, timed against the 30-min bound
 pnpm rebuild            # reconstruct every truth row from chain + published pick-sets and diff
 ```
 

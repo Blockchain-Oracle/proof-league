@@ -118,3 +118,27 @@ Checked in a real browser rather than from clean-load screenshots alone:
 
 The remaining fidelity work is the states this build has no data for yet (first-run,
 awaiting attestation, a player's own pick), which arrive with the stories that own them.
+
+---
+
+## `verify:hosted-round` — 2026-09-03, live deployment
+
+FR-21's bound is a number, so it is measured rather than asserted. The script runs the
+whole cycle with a stopwatch and fails if it overruns.
+
+```
+round 4 created, settleBlock 11628132, draw fixed by that block's hash
+market 5 created, locks at 1788457350
+locked and committed
+settled on Sepolia: 0xc4688628ddedbac5327a9672c8309ce62c9c5814c9d62a6e409ce991bd822f0c
+PASS — create -> lock -> settle -> proof verified in 21m 20s
+  bound: 30 min — met with 9 min to spare
+  draw 916898075610319736 landed in option 5 of 5, each exactly one fifth
+```
+
+What this demonstrates: a judge can watch a complete round inside any half-hour window,
+and it travels the identical Referee path with no special-casing. The outcome came from
+the hash of a block that had not been mined when the round was created, so the operator
+could not grind or choose it, and the five equal options over the declared range make the
+round break even by construction. The product says exactly that on any Hosted Round
+market, which is the AD-11 copy law rather than a disclaimer.

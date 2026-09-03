@@ -4,6 +4,7 @@ import { deriveMarketChip, expectedSettlementSecOf, formatUtc } from "@proof-lea
 import { SectionHead } from "../../../../components/shell/section-head.js";
 import { StateChip } from "../../../../components/state-chip.js";
 import { SettledRecordCard } from "../../../../components/settled-record.js";
+import { HostedRoundLabel, isHostedRound } from "../../../../components/hosted-round-label.js";
 import { marketDetail } from "../../../../lib/market-data.js";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export default async function MarketDetailPage({ params }: { params: Promise<{ m
             <StateChip chip={chip} />
             <span className="font-data text-xs text-ink-muted">league day {market.leagueDay}</span>
           </div>
+
+          {isHostedRound(market.emitter) ? <HostedRoundLabel /> : null}
 
           <section>
             <h2 className="font-display text-base font-bold">Where the answer comes from</h2>
