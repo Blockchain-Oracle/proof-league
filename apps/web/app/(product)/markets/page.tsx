@@ -1,4 +1,5 @@
 import { deriveMarketChip, expectedSettlementSecOf, formatUtc } from "@proof-league/shared";
+import Link from "next/link";
 import { SectionHead } from "../../../components/shell/section-head.js";
 import { StateChip } from "../../../components/state-chip.js";
 import { listBoardMarkets } from "../../../lib/market-data.js";
@@ -24,7 +25,9 @@ export default async function MarketsPage() {
           {rows.map((market) => (
             <li key={market.marketId} className="flex flex-wrap items-center justify-between gap-3 py-4">
               <div className="flex flex-col gap-1">
-                <span className="font-display text-sm font-semibold">Market {market.marketId}</span>
+                <Link href={`/markets/${market.marketId}`} className="font-display text-sm font-semibold hover:text-brand">
+                  Market {market.marketId}
+                </Link>
                 <span className="font-data text-xs text-ink-muted">
                   locks {formatUtc(market.lockTime)} · league day {market.leagueDay} · {market.payoutN} options
                 </span>

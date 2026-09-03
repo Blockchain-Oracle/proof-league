@@ -122,6 +122,10 @@ export const resolutions = pgTable(
     occurredAt: bigint("occurred_at", { mode: "number" }).notNull(),
     resolvedAt: bigint("resolved_at", { mode: "number" }).notNull(),
     winningOption: integer("winning_option").notNull(),
+    // The Creditcoin transaction that carried the accepted proof and emitted this
+    // resolution. It is what a settled Card links to, so it belongs in truth rather than
+    // in the class-2 observation log: it comes from the MarketResolved event itself.
+    proofTxHash: text("proof_tx_hash"),
   },
   (table) => [primaryKey({ columns: [table.core, table.marketId] })],
 );

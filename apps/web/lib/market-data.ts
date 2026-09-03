@@ -1,6 +1,6 @@
 import { createPublicClient, http, type Address } from "viem";
 import { creditCoin3Testnet, DEPLOYED, proofGatewayAbi, readEndpoints } from "@proof-league/chain";
-import { and, createDb, eq, markets, type Db } from "@proof-league/shared/db";
+import { and, createDb, desc, eq, markets, resolutions, type Db } from "@proof-league/shared/db";
 
 // Server-side class-1 reads (AD-8/AD-18): the web is a WINDOW on the projection, never a
 // computer of outcomes. Absent DATABASE_URL (or any read failure) surfaces as an honest
@@ -78,6 +78,47 @@ export const nextMarketToLock = async (): Promise<FeaturedMarket | undefined> =>
   }
 };
 
+export type SettledRecord = {
+  readonly marketId: string;
+  readonly value: string;
+  readonly winningOption: number;
+  readonly occurredAt: number;
+  readonly resolvedAt: number;
+  readonly proofTxHash: string | null;
+  readonly payoutN: number;
+  readonly boundaries: readonly string[];
+};
+
+/// The most recent proof-backed settlement, for the landing's exhibit. Returns nothing
+/// when none exists yet, which is a structural empty state upstream and never a
+/// fabricated one: the whole pitch is that this row is real (FR-2).
+export const latestSettledRecord = async (): Promise<SettledRecord | undefined> => {
+  const db = dbOrUndefined();
+  const core = await coreAddress();
+  if (db === undefined || core === undefined) return undefined;
+  try {
+    const rows = await db
+      .select({
+        marketId: resolutions.marketId,
+        value: resolutions.value,
+        winningOption: resolutions.winningOption,
+        occurredAt: resolutions.occurredAt,
+        resolvedAt: resolutions.resolvedAt,
+        proofTxHash: resolutions.proofTxHash,
+        payoutN: markets.payoutN,
+        boundaries: markets.boundaries,
+      })
+      .from(resolutions)
+      .innerJoin(markets, and(eq(markets.core, resolutions.core), eq(markets.marketId, resolutions.marketId)))
+      .where(eq(resolutions.core, core.toLowerCase()))
+      .orderBy(desc(resolutions.resolvedAt))
+      .limit(1);
+    return rows[0];
+  } catch {
+    return undefined;
+  }
+};
+
 /// The board's rows, earliest lock first, capped; the Markets story adds real filters.
 export const listBoardMarkets = async (): Promise<FeaturedMarket[]> => {
   const db = dbOrUndefined();
@@ -92,5 +133,52 @@ export const listBoardMarkets = async (): Promise<FeaturedMarket[]> => {
       .limit(50);
   } catch {
     return [];
+  }
+};
+
+export type MarketDetail = FeaturedMarket & {
+  readonly sourceKey: string;
+  readonly sourceChainKey: string;
+  readonly emitter: string;
+  readonly eventSignature: string;
+  readonly subjectFilter: string;
+  readonly decoderId: number;
+  readonly boundaries: readonly string[];
+  readonly commitRoot: string | null;
+  readonly commitSha256: string | null;
+  readonly commitUri: string | null;
+  readonly committedAt: number | null;
+  readonly resolution?: SettledRecord | undefined;
+};
+
+/// One market with everything needed to explain how it settles, plus its resolution when
+/// it has one. Every field is a projection of chain state, so the page can show the
+/// derivation without computing anything itself.
+export const marketDetail = async (marketId: string): Promise<MarketDetail | undefined> => {
+  const db = dbOrUndefined();
+  const core = await coreAddress();
+  if (db === undefined || core === undefined) return undefined;
+  if (!/^[0-9]+$/.test(marketId)) return undefined;
+  try {
+    const [row] = await db
+      .select()
+      .from(markets)
+      .where(and(eq(markets.core, core.toLowerCase()), eq(markets.marketId, marketId)))
+      .limit(1);
+    if (row === undefined) return undefined;
+    const [resolution] = await db
+      .select()
+      .from(resolutions)
+      .where(and(eq(resolutions.core, core.toLowerCase()), eq(resolutions.marketId, marketId)))
+      .limit(1);
+    return {
+      ...row,
+      resolution:
+        resolution === undefined
+          ? undefined
+          : { ...resolution, payoutN: row.payoutN, boundaries: row.boundaries },
+    };
+  } catch {
+    return undefined;
   }
 };

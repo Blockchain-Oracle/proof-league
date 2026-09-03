@@ -63,6 +63,19 @@ by design. Until then the pool reads 0 on-chain and the banner renders that hone
 This is deliberately the last step on the pre-window checklist: the placeholder pool is
 1,000 testnet CTC and the account holds 10,000.
 
+## 4b. Finish the payout evidence (timed, needs nothing but a terminal)
+
+`verify:payout` stage 1 passed earlier on a minutes-long test Season. Stage 2 drives
+expiry into pull-payment and can only run once the real 6-hour challenge window closes,
+at **20:15 UTC on 2026-09-03**. After that, with `.env.local` sourced:
+
+```
+pnpm verify:payout
+```
+
+It resumes from the pointer in `.worker-state/verify-payout/`, so do not clean that
+directory. Until the window closes it exits 1 by design rather than pretend.
+
 ## 5. Privy application (blocks: players signing in)
 
 Story 3.3's sign-in needs `NEXT_PUBLIC_PRIVY_APP_ID` and `PRIVY_APP_SECRET`. Nothing in

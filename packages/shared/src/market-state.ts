@@ -17,6 +17,12 @@ export type MarketChip =
   | "voided"
   | "stuck";
 
+/// A Resolved Market's chip does not depend on its clocks: the proof exists, so the
+/// derivation is constant. Exported so a surface holding only a resolution (which knows
+/// the state but not the timing) still renders through this module rather than typing the
+/// label itself — the single-renderer law with no exception carved for convenience.
+export const RESOLVED_CHIP: MarketChip = "proof verified";
+
 export type MarketTimingConfig = {
   readonly lockTimeSec: number;
   readonly sourceWindowOpenSec: number;

@@ -120,11 +120,20 @@ const reconstruct = async (core: Address, mirrorDir: string, fromBlock: bigint):
     truth.markets[key] = row;
     if (state === "Resolved") {
       const resolution = await publicClient.readContract({ ...contract, functionName: "getResolution", args: [marketId] });
+      const [resolvedLog] = await publicClient.getContractEvents({
+        ...contract,
+        eventName: "MarketResolved",
+        args: { marketId },
+        fromBlock,
+        toBlock: "latest",
+        strict: true,
+      });
       truth.resolutions[key] = {
         value: resolution.value.toString(),
         occurredAt: Number(resolution.occurredAt),
         resolvedAt: Number(resolution.resolvedAt),
         winningOption: resolution.winningOption,
+        proofTxHash: resolvedLog?.transactionHash ?? null,
       };
     }
   }

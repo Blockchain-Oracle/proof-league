@@ -158,6 +158,17 @@ const projectMarkets = async (ctx: ProjectorContext, domain: PickDomain): Promis
 
     if (state === "Resolved" && known !== "Resolved") {
       const resolution = await publicClient.readContract({ ...contract, functionName: "getResolution", args: [marketId] });
+      // The proof transaction comes from the event itself, so a settled Card can link the
+      // Creditcoin transaction that decided it. marketId is indexed, so this is one narrow
+      // query and only on the transition into Resolved.
+      const [resolvedLog] = await publicClient.getContractEvents({
+        ...contract,
+        eventName: "MarketResolved",
+        args: { marketId },
+        fromBlock: BigInt(ctx.initialScanBlock ?? 0),
+        toBlock: "latest",
+        strict: true,
+      });
       await ctx.db
         .insert(resolutions)
         .values({
@@ -167,8 +178,12 @@ const projectMarkets = async (ctx: ProjectorContext, domain: PickDomain): Promis
           occurredAt: Number(resolution.occurredAt),
           resolvedAt: Number(resolution.resolvedAt),
           winningOption: resolution.winningOption,
+          proofTxHash: resolvedLog?.transactionHash ?? null,
         })
-        .onConflictDoNothing();
+        .onConflictDoUpdate({
+          target: [resolutions.core, resolutions.marketId],
+          set: { proofTxHash: resolvedLog?.transactionHash ?? null },
+        });
     }
 
     let next: ProjectorCursor["markets"][string] = state;
