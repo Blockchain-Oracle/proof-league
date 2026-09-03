@@ -8,6 +8,9 @@ export type DeployedContracts = {
   // an independently-configured core could have any deployer as its resolver, which no
   // constructor check can refuse.
   readonly proofGateway?: Address;
+  // The gateway's deployment block: every log scan (projector, rebuild, season watcher)
+  // starts here instead of genesis, so a fresh consumer never pages the whole chain.
+  readonly deployBlock?: number;
   readonly contestSource?: Address;
   // Registry ids on the deployed gateway, recorded at registration (Story 5.4) so the worker
   // and verify scripts never guess which append-only id maps to which decoder shape.
@@ -16,8 +19,13 @@ export type DeployedContracts = {
 };
 
 export const DEPLOYED: DeployedContracts = {
-  // Sepolia, 2026-09-03, worker1 nonce 0 (tx 0x4c664e71..eb65b3ef — truncated for the
-  // secret-scan key pattern), creators = worker1..3, source verified on
-  // eth-sepolia.blockscout.com (0.8.28, paris).
+  // Creditcoin 3 testnet, 2026-09-03: deployed by scripts in apps/worker/src/deploy.ts.
+  // The gateway deployed its own LeagueCore (0x9fc3D255..) — derive it via
+  // gateway.leagueCore(), never configure it here. Season: end 1789603200, escrow
+  // is the segregated fourth account, pool 0 until the manual pre-window funding step.
+  proofGateway: "0x6bf6a39cc74c52295d3d9d87a189124c57dd0d76",
+  deployBlock: 5423190,
   contestSource: "0x8334889B9c068e57078Da3376087ee2b7A7fd42B",
+  lidoRateRatioDecoderId: 1,
+  contestRoundDecoderId: 2,
 };
