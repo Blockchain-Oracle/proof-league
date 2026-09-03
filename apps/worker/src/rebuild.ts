@@ -22,6 +22,7 @@ import { createPublicClient, http } from "viem";
 import { creditCoin3Testnet } from "@proof-league/chain";
 import { loadPickSet } from "./pickset/load.js";
 import { readPicksetPublisherConfig } from "./pickset/publish.js";
+import { verifySeriesConformance } from "./series-conformance.js";
 import { readStateDir } from "./state.js";
 
 // pnpm rebuild (Story 2.9, AD-8/AD-18): the proof that the database is just a cache of
@@ -216,6 +217,20 @@ const reconstruct = async (core: Address, mirrorDir: string, fromBlock: bigint):
       rank: index + 1,
     };
   });
+
+  // AD-21's conformance half: every Series instance's stored params must equal an
+  // independent TS recompute of formula(chain-resident observations) — "chosen by
+  // nobody" as a diff, not a promise.
+  const seriesDiffs = await verifySeriesConformance(
+    publicClient,
+    core,
+    truth.markets as Parameters<typeof verifySeriesConformance>[2],
+    Object.fromEntries(Object.entries(truth.resolutions).map(([key, row]) => [key, (row as { value: string }).value])),
+  );
+  if (seriesDiffs.length > 0) {
+    for (const diff of seriesDiffs) log.error(`rebuild: SERIES DIFF — ${diff}`);
+    return fail(`${seriesDiffs.length} series instance(s) disagree with the registered formula`);
+  }
   return truth;
 };
 

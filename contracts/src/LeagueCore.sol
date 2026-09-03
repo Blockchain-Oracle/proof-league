@@ -5,6 +5,7 @@ import {MarketConfig, MarketState, Pick, PickCommitment, Resolution} from "./Lea
 import {BoundaryCountOutOfRange, LeagueCanon} from "./LeagueCanon.sol";
 import {LeagueScoring} from "./LeagueScoring.sol";
 import {LeagueSeasonSurface, SeasonParams} from "./LeagueSeason.sol";
+import {LeagueSeriesSurface} from "./LeagueSeries.sol";
 
 /// LeagueCore — the market registry and settlement ledger (Stories 2.1-2.6, 2.10).
 /// Sole minter of marketId; holds each Market's immutable config, the sourceKey index
@@ -21,7 +22,7 @@ import {LeagueSeasonSurface, SeasonParams} from "./LeagueSeason.sol";
 /// gateway.leagueCore() — a core configured independently could have any deployer as
 /// its resolver, which no constructor check can refuse (the deploying gateway has no
 /// code yet while this constructor runs) [review 2026-09-03].
-contract LeagueCore is LeagueSeasonSurface {
+contract LeagueCore is LeagueSeasonSurface, LeagueSeriesSurface {
     // Mirrors MIN_COMMIT_MARGIN_SEC in packages/shared/src/time.ts (AD-14): an unusably
     // thin commit window is unrepresentable on-chain.
     uint64 public constant MIN_COMMIT_MARGIN = 300;
@@ -107,6 +108,13 @@ contract LeagueCore is LeagueSeasonSurface {
     /// indexes the market under its sourceKey.
     function createMarket(MarketConfig calldata config) external returns (uint256 marketId) {
         if (!isMarketCreator[msg.sender]) revert NotMarketCreator();
+        return _admitMarket(config);
+    }
+
+    /// The one admission path, shared by direct creation and the Series engine (Story
+    /// 2.11 — instantiateNext derives a config and lands HERE, so a Series can never
+    /// mint what a creator could not).
+    function _admitMarket(MarketConfig memory config) internal returns (uint256 marketId) {
         if (config.sourceChainKey == 0 || config.emitter == address(0) || config.eventSignature == bytes32(0)) {
             revert ZeroSourceField();
         }
@@ -340,6 +348,28 @@ contract LeagueCore is LeagueSeasonSurface {
 
     // The scoring ledger reads (seasonPointsOf, streakOf, earliestCommitOrdinalOf and
     // friends) live in LeagueSeasonSurface beside the machine that consumes them.
+
+    // -- LeagueSeriesSurface hooks (Story 2.11): the engine reads this contract's truth
+    // and mints through the one admission path, owning no market storage of its own.
+    function _createMarketFromSeries(MarketConfig memory config) internal override returns (uint256) {
+        return _admitMarket(config);
+    }
+
+    function _seriesMarketState(uint256 marketId) internal view override returns (MarketState) {
+        return _states[marketId];
+    }
+
+    function _seriesResolutionValue(uint256 marketId) internal view override returns (int256) {
+        return _resolutions[marketId].value;
+    }
+
+    function _requireMarketCreator() internal view override {
+        if (!isMarketCreator[msg.sender]) revert NotMarketCreator();
+    }
+
+    function _seriesCommitMargin() internal pure override returns (uint64) {
+        return MIN_COMMIT_MARGIN;
+    }
 
     // Ids are dense from 1, so existence is a range check; the zero-value MarketState
     // (Created) can therefore never leak for an unminted id.

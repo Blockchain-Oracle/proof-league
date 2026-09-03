@@ -5,6 +5,7 @@ import { cc3Clients, readWorkerAccounts, readWorkerKey } from "./cc3.js";
 import { startLoop } from "./loop.js";
 import { startHealthServer } from "./health.js";
 import { runCommitRound } from "./commit-round.js";
+import { runSchedulerRound } from "./scheduler-round.js";
 import { runScoringRound } from "./scoring-round.js";
 import { runProjectorRound } from "./projector-round.js";
 import { runVoidRound } from "./void-round.js";
@@ -67,10 +68,18 @@ if (gateway === undefined) {
     webhookUrl: process.env.OPERATOR_WEBHOOK_URL,
   };
   startLoop(async () => {
-    // Four duties, sequential (they share one signing account — parallel writes would
-    // race nonces), each isolated so one failing duty never starves the others. Commit
-    // runs FIRST: a market must be Committed before its event fires for settlement to
-    // have anything to settle (AD-14 — commitment precedes knowability).
+    // The duties run sequentially (they share one signing account — parallel writes
+    // would race nonces), each isolated so one failing duty never starves the others.
+    // Scheduler first (creation precedes commitment), then commit (a market must be
+    // Committed before its event fires — AD-14), then the settlement machine.
+    try {
+      const scheduled = await runSchedulerRound(core, clients, store);
+      if (scheduled.minted.length > 0) {
+        logger.info(`[worker] scheduler minted: ${scheduled.minted.map((m) => `${m.seriesId}->${m.marketId}`).join(", ")}`);
+      }
+    } catch (error) {
+      logger.error({ err: error }, "[worker] scheduler round failed");
+    }
     try {
       const commits = await runCommitRound({ core, clients, db: database?.db, publisher, projection });
       if (commits.committed.length > 0) {

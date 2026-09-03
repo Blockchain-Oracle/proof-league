@@ -320,6 +320,30 @@ export const leagueCoreAbi = [
   },
   {
     "type": "function",
+    "name": "deriveSeriesBoundaries",
+    "inputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "slotIndex",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "int256[]",
+        "internalType": "int256[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "earliestCommitOrdinalOf",
     "inputs": [
       {
@@ -601,6 +625,49 @@ export const leagueCoreAbi = [
   },
   {
     "type": "function",
+    "name": "instantiateHostedSlot",
+    "inputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "subject",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "instantiateNext",
+    "inputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "isMarketCreator",
     "inputs": [
       {
@@ -662,6 +729,112 @@ export const leagueCoreAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "registerSeries",
+    "inputs": [
+      {
+        "name": "template",
+        "type": "tuple",
+        "internalType": "struct LeagueSeriesSurface.SeriesTemplate",
+        "components": [
+          {
+            "name": "sourceChainKey",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "emitter",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "eventSignature",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "subjectFilter",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "externalSubject",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "decoderId",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "payoutN",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "firstSlotTime",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "slotPeriodSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "lockLeadSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "voidTailSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "horizonTailSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "preCreateLeadSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "obsLagSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "maxInstancesPerDay",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "baseBoundaries",
+            "type": "int256[]",
+            "internalType": "int256[]"
+          },
+          {
+            "name": "anchorOffsets",
+            "type": "int256[]",
+            "internalType": "int256[]"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -928,6 +1101,199 @@ export const leagueCoreAbi = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seriesCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seriesInstancesOf",
+    "inputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct LeagueSeriesSurface.SeriesInstance[]",
+        "components": [
+          {
+            "name": "slotIndex",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "marketId",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seriesMintedOnDay",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint32",
+        "internalType": "uint32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seriesNextSlot",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "seriesTemplateOf",
+    "inputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct LeagueSeriesSurface.SeriesTemplate",
+        "components": [
+          {
+            "name": "sourceChainKey",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "emitter",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "eventSignature",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "subjectFilter",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "externalSubject",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "decoderId",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "payoutN",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "firstSlotTime",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "slotPeriodSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "lockLeadSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "voidTailSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "horizonTailSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "preCreateLeadSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "obsLagSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "maxInstancesPerDay",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "baseBoundaries",
+            "type": "int256[]",
+            "internalType": "int256[]"
+          },
+          {
+            "name": "anchorOffsets",
+            "type": "int256[]",
+            "internalType": "int256[]"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
@@ -1477,6 +1843,162 @@ export const leagueCoreAbi = [
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "SeriesInstantiated",
+    "inputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "slotIndex",
+        "type": "uint64",
+        "indexed": true,
+        "internalType": "uint64"
+      },
+      {
+        "name": "marketId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SeriesRegistered",
+    "inputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "template",
+        "type": "tuple",
+        "indexed": false,
+        "internalType": "struct LeagueSeriesSurface.SeriesTemplate",
+        "components": [
+          {
+            "name": "sourceChainKey",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "emitter",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "eventSignature",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "subjectFilter",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "externalSubject",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "decoderId",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "payoutN",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "firstSlotTime",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "slotPeriodSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "lockLeadSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "voidTailSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "horizonTailSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "preCreateLeadSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "obsLagSec",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "maxInstancesPerDay",
+            "type": "uint32",
+            "internalType": "uint32"
+          },
+          {
+            "name": "baseBoundaries",
+            "type": "int256[]",
+            "internalType": "int256[]"
+          },
+          {
+            "name": "anchorOffsets",
+            "type": "int256[]",
+            "internalType": "int256[]"
+          }
+        ]
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SeriesSlotSkipped",
+    "inputs": [
+      {
+        "name": "seriesId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "slotIndex",
+        "type": "uint64",
+        "indexed": true,
+        "internalType": "uint64"
+      },
+      {
+        "name": "lockTime",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "BatchBeyondSet",
     "inputs": []
@@ -1549,6 +2071,11 @@ export const leagueCoreAbi = [
   {
     "type": "error",
     "name": "InvalidSeasonParams",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSeriesTemplate",
     "inputs": []
   },
   {
@@ -1658,6 +2185,31 @@ export const leagueCoreAbi = [
   },
   {
     "type": "error",
+    "name": "SeriesDayCapExceeded",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeriesObservationsNotFinal",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeriesSlotNotDue",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeriesSubjectMode",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SeriesZeroSubject",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "SourceKeyFull",
     "inputs": []
   },
@@ -1669,6 +2221,11 @@ export const leagueCoreAbi = [
   {
     "type": "error",
     "name": "UnknownMarket",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "UnknownSeries",
     "inputs": []
   },
   {
