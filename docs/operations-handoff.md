@@ -63,18 +63,18 @@ by design. Until then the pool reads 0 on-chain and the banner renders that hone
 This is deliberately the last step on the pre-window checklist: the placeholder pool is
 1,000 testnet CTC and the account holds 10,000.
 
-## 4b. Finish the payout evidence (timed, needs nothing but a terminal)
+## 4b. Finish the payout evidence — DONE 2026-09-03 18:42 UTC
 
-`verify:payout` stage 1 passed earlier on a minutes-long test Season. Stage 2 drives
-expiry into pull-payment and can only run once the real 6-hour challenge window closes,
-at **20:15 UTC on 2026-09-03**. After that, with `.env.local` sourced:
+Both stages passed; the transcript is archived in `docs/verify-evidence.md`. The whole
+path — trigger, claim, 6-hour challenge window, expiry, pull-payment — ran end-to-end on
+testnet against the same forge bytecode, and the zero-winner split returned the exact
+pool to escrow (withdraw tx `0x09f8dae1..3ce97`). Nothing here is outstanding.
 
-```
-pnpm verify:payout
-```
-
-It resumes from the pointer in `.worker-state/verify-payout/`, so do not clean that
-directory. Until the window closes it exits 1 by design rather than pretend.
+Note for anyone reading the old version of this section: it said the challenge window
+closed at "20:15 UTC", which was Eastern time written as UTC. `windowEndsAtSec`
+1788452100 is **16:15 UTC**, and stage 2 was runnable four hours earlier than this file
+claimed. The pointer in `apps/worker/.worker-state/verify-payout/` is now spent — it
+records a finalized season, so a re-run has nothing left to drive.
 
 ## 5. Privy application (blocks: players signing in)
 

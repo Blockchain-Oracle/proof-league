@@ -142,3 +142,50 @@ the hash of a block that had not been mined when the round was created, so the o
 could not grind or choose it, and the five equal options over the declared range make the
 round break even by construction. The product says exactly that on any Hosted Round
 market, which is the AD-11 copy law rather than a disclaimer.
+
+---
+
+## `verify:payout` — 2026-09-03, both stages complete
+
+The season payout is the one path that cannot be exercised on the real Season before
+2026-09-17, so it is proven on a minutes-long test Season deployed from the **same forge
+artifact bytecode** — season parameters are constructor arguments precisely so this
+script can exist. The 6-hour challenge window is the real constant, not a test value,
+which is what makes the run resumable across two stages hours apart.
+
+**Stage 1** (test gateway `0x542fc29cff2709d7bf22aac4f12c3ccf1b152778`, core
+`0xc290F08F03eBEe145A6e72Ff19fb84eb7a7e5eE9`, pool 0.5 CTC, `seasonEnd` 1788430260)
+deployed and funded the season, then drove it to `candidate-submitted` through the
+worker's own `runSeasonRound`, probing four guards by name on the way: `SeasonNotOver`
+before the season ends, `SeasonMarketsNotTerminal` while a season-day market was still
+Committed, `CandidateNotEligible` for a pointless-player candidate, and
+`ChallengeWindowOpen` for a finalize inside the window. The market that blocked the
+all-terminal gate was cleared by the permissionless `void` — Story 2.6's liveness
+argument, exercised live rather than argued. Stage 1 exits **1** by design: an in-progress
+run is never archivable as PASS.
+
+**Stage 2**, after the challenge window expired at 1788452100 (2026-09-03 16:15:00 UTC):
+
+```
+verify:payout: finalizeSeasonPayout landed: 0x9f1334227e3bb8dc8a4a2ab52bd244b5daacac37445dd58fcd1ee9da180f4f16
+verify:payout: double finalize correctly refused (SeasonAlreadyPaid)
+verify:payout: double withdraw correctly refused (NothingToWithdraw)
+verify:payout: PASS — trigger -> claim -> challenge -> pay end-to-end on testnet, same bytecode.
+  0-winner split returned the whole pool to escrow; every pre- and post-payout guard probed by name.
+  withdraw tx: https://creditcoin-testnet.blockscout.com/tx/0x09f8dae1b970563dd6e471d6961ce98850b554ab7e86b2c64bf9070bb3863e97
+```
+
+What this demonstrates: the pot pays itself. Nobody decides that a season is over, who
+won, or when the money moves — the season end is a timestamp, the candidate is submitted
+by a duty any account can perform, the challenge window is a constant, and payment is
+pull-based, so a failed transfer cannot wedge the settlement. The zero-winner split is
+the case worth proving rather than the happy path: with no eligible winner the contract
+returned the **entire** pool to escrow and the script asserted the exact wei, so the
+"unclaimed money quietly stays somewhere" failure is closed off by an equality rather
+than by trust. Both post-payout guards then refused by name, so paying twice is
+structurally impossible and not merely unattempted.
+
+One correction worth recording, since it cost a working day of waiting: the window's end
+was noted as "20:15 UTC" in the handoff when 1788452100 is 16:15 UTC — Eastern time
+written as UTC. The script itself was never wrong; it compares against `block.timestamp`
+and refused every early attempt exactly as designed. Only the human note was off.
