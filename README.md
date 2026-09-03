@@ -33,8 +33,8 @@ Proof League removes that position from the design rather than promising not to 
 
 | Contract | Address |
 |---|---|
-| ProofGateway (the entry point) | [`0x6bf6a39cc74c52295d3d9d87a189124c57dd0d76`](https://creditcoin-testnet.blockscout.com/address/0x6bf6a39cc74c52295d3d9d87a189124c57dd0d76) |
-| LeagueCore (deployed by the gateway's constructor) | [`0x9fc3D255cd7ee7371f9D17C91f44c4EE68204Aa2`](https://creditcoin-testnet.blockscout.com/address/0x9fc3D255cd7ee7371f9D17C91f44c4EE68204Aa2) |
+| ProofGateway (the entry point) | [`0x4549fbd1acf45cf46f29b3adb6b052880c8040ec`](https://creditcoin-testnet.blockscout.com/address/0x4549fbd1acf45cf46f29b3adb6b052880c8040ec) |
+| LeagueCore (deployed by the gateway's constructor) | [`0xFe8C5438781f8c8392a49e20502920Ba41027493`](https://creditcoin-testnet.blockscout.com/address/0xFe8C5438781f8c8392a49e20502920Ba41027493) |
 | ContestSource (Sepolia, the Hosted Round source) | [`0x8334889B9c068e57078Da3376087ee2b7A7fd42B`](https://eth-sepolia.blockscout.com/address/0x8334889B9c068e57078Da3376087ee2b7A7fd42B) |
 
 Registered decoders: `1` Lido rate-ratio, `2` Contest round. Off-chain config records the

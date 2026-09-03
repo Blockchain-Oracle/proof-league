@@ -53,15 +53,21 @@ const createMarket = async (
   core: `0x${string}`,
   config: MarketConfigArg,
 ): Promise<bigint> => {
-  const hash = await clients.walletClient.writeContract({
-    address: core,
-    abi: leagueCoreAbi,
-    functionName: "createMarket",
-    args: [config],
-  });
+  // Simulate first so an admission refusal arrives as its NAMED error rather than as a
+  // mined-but-reverted transaction we can only describe as "emitted no event".
+  const { request } = await clients.publicClient
+    .simulateContract({
+      address: core,
+      abi: leagueCoreAbi,
+      functionName: "createMarket",
+      args: [config],
+      account: clients.walletClient.account,
+    })
+    .catch((error: unknown) => fail(`createMarket refused: ${String(error).split("\n")[0]}`));
+  const hash = await clients.walletClient.writeContract(request);
   const receipt = await clients.publicClient.waitForTransactionReceipt({ hash });
   const [created] = parseEventLogs({ abi: leagueCoreAbi, eventName: "MarketCreated", logs: receipt.logs });
-  if (created === undefined) return fail(`createMarket tx ${hash} emitted no MarketCreated`);
+  if (created === undefined) return fail(`createMarket tx ${hash} status=${receipt.status}, no MarketCreated`);
   return created.args.marketId;
 };
 
@@ -83,7 +89,11 @@ const main = async (): Promise<void> => {
   const contract = { address: core, abi: leagueCoreAbi } as const;
 
   const startSec = (await clients.publicClient.getBlock()).timestamp;
-  const lockTime = startSec + 20n;
+  // Headroom for the TWO createMarket transactions below: at ~15 s blocks a 20 s lock
+  // arrives before the second one mines, and the market is refused BornLocked. First real
+  // run against a live deployment found exactly that, which is the same class of mistake
+  // verify:payout hit — chain time moves while your fixture is being written.
+  const lockTime = startSec + 120n;
   const sourceWindowOpen = lockTime + BigInt(MIN_COMMIT_MARGIN_SEC);
   const voidDeadline = sourceWindowOpen + 45n;
   const config: MarketConfigArg = {

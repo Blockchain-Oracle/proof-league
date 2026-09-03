@@ -89,7 +89,10 @@ const main = async (): Promise<void> => {
   // — a lockTime computed before a Sepolia tx mines arrives born-locked (bitten live in
   // verify:payout's first run; same class).
   const t0 = (await clients.publicClient.getBlock()).timestamp;
-  const scheduledSettleTime = t0 + 480n;
+  // Roomy enough that the whole fixture (a Sepolia round, then a CC3 market with a lock
+  // that must still be in the future when its transaction mines) fits inside it with the
+  // margin check below to spare.
+  const scheduledSettleTime = t0 + 900n;
   const sepoliaHeadBlock = await sepoliaSource.viem.getBlock();
   // The block-to-clock arithmetic the contract cannot verify (12 s Sepolia blocks + margin):
   // settleBlock's expected mining time sits at or past scheduledSettleTime.
@@ -109,7 +112,10 @@ const main = async (): Promise<void> => {
   log.info(`verify:settlement: Sepolia round ${roundId}, settleBlock ${settleBlock}: ${createRoundHash}`);
 
   const t1 = (await clients.publicClient.getBlock()).timestamp;
-  const lockTime = t1 + 30n;
+  // At ~15 s blocks a 30 s lock is a coin flip: the createMarket below has to MINE while
+  // lockTime is still in the future or admission refuses it BornLocked. The first live run
+  // won that flip and the second lost it, which is the tell that it was never a margin.
+  const lockTime = t1 + 120n;
   const sourceWindowOpen = lockTime + BigInt(MIN_COMMIT_MARGIN_SEC);
   // Check 6 reads the DECODED occurredAt (= scheduledSettleTime): the window must open at
   // or before it, or the event is pre-open to its own market and can never resolve it.
@@ -134,14 +140,15 @@ const main = async (): Promise<void> => {
     boundaries: [0n],
   } as const;
   const coreContract = { address: core, abi: leagueCoreAbi } as const;
-  const createHash = await clients.walletClient.writeContract({
-    ...coreContract,
-    functionName: "createMarket",
-    args: [config],
-  });
+  // Simulate first so an admission refusal arrives as its NAMED error instead of as a
+  // mined-but-reverted transaction we can only describe as "emitted no event".
+  const { request: createRequest } = await clients.publicClient
+    .simulateContract({ ...coreContract, functionName: "createMarket", args: [config], account: clients.walletClient.account })
+    .catch((error: unknown) => fail(`createMarket refused: ${String(error).split("\n")[0]}`));
+  const createHash = await clients.walletClient.writeContract(createRequest);
   const createReceipt = await clients.publicClient.waitForTransactionReceipt({ hash: createHash });
   const [created] = parseEventLogs({ abi: leagueCoreAbi, eventName: "MarketCreated", logs: createReceipt.logs });
-  if (created === undefined) return fail(`createMarket tx ${createHash} emitted no MarketCreated`);
+  if (created === undefined) return fail(`createMarket tx ${createHash} status=${createReceipt.status}, no MarketCreated`);
   const marketId = created.args.marketId;
   const sourceKey = created.args.sourceKey;
   log.info(`verify:settlement: market ${marketId} on sourceKey ${sourceKey}`);

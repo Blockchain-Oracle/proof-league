@@ -20,11 +20,11 @@ export type DeployedContracts = {
 
 export const DEPLOYED: DeployedContracts = {
   // Creditcoin 3 testnet, 2026-09-03: deployed by scripts in apps/worker/src/deploy.ts.
-  // The gateway deployed its own LeagueCore (0x9fc3D255..) — derive it via
+  // The gateway deployed its own LeagueCore (0xFe8C5438..) — derive it via
   // gateway.leagueCore(), never configure it here. Season: end 1789603200, escrow
   // is the segregated fourth account, pool 0 until the manual pre-window funding step.
-  proofGateway: "0x6bf6a39cc74c52295d3d9d87a189124c57dd0d76",
-  deployBlock: 5423190,
+  proofGateway: "0x4549fbd1acf45cf46f29b3adb6b052880c8040ec",
+  deployBlock: 5423291,
   contestSource: "0x8334889B9c068e57078Da3376087ee2b7A7fd42B",
   lidoRateRatioDecoderId: 1,
   contestRoundDecoderId: 2,

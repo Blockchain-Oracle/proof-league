@@ -8,7 +8,7 @@ chain-resident observations, so a Market that violated its template could not ex
 without the rebuild diff going red.
 
 Registered on Creditcoin 3 testnet against `LeagueCore`
-`0x9fc3D255cd7ee7371f9D17C91f44c4EE68204Aa2` (gateway `0x6bf6a39c..0d76`).
+`0xFe8C5438781f8c8392a49e20502920Ba41027493` (gateway `0x4549fbd1..40ec`).
 
 ---
 
