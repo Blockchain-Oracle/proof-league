@@ -8,7 +8,8 @@
     "node": ">=24 <25"
   },
   "scripts": {
-    "check": "pnpm check:lint && pnpm check:rawlines && pnpm check:types && pnpm check:secrets && pnpm check:overclaim",
+    "check": "pnpm check:lint && pnpm check:rawlines && pnpm check:ui && pnpm check:types && pnpm check:secrets && pnpm check:overclaim",
+    "check:ui": "node scripts/ui-grammar-sweep.mjs",
     "check:lint": "eslint apps packages --max-warnings 0",
     "check:rawlines": "node scripts/raw-lines-sweep.mjs",
     "check:types": "pnpm -r --filter './apps/*' --filter './packages/*' run typecheck",

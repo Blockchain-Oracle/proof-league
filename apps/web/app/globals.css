@@ -63,3 +63,95 @@ body {
   font-family: var(--font-body);
   margin: 0;
 }
+
+/* -- Story 3.1: the shared shell grammar (REFERENCE-DESIGN §4) ----------------------- */
+/* This file is the ONE owned home of raw @media/keyframes (CONVENTIONS §7): the
+   ui-grammar sweep fails any ad hoc media query outside it. */
+
+/* Film grain: the source's .045 overlay, an SVG turbulence tile, fixed and inert. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Crop ticks: registration marks on section heads and framed surfaces. */
+.crop-ticks {
+  position: relative;
+}
+.crop-ticks::before,
+.crop-ticks::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+.crop-ticks::before {
+  top: 0;
+  left: 0;
+  border-top: 1px solid var(--ink);
+  border-left: 1px solid var(--ink);
+}
+.crop-ticks::after {
+  bottom: 0;
+  right: 0;
+  border-bottom: 1px solid var(--ink);
+  border-right: 1px solid var(--ink);
+}
+
+/* The live ticker/marquee: one continuous editorial line. Motion-safe only; reduced
+   motion holds the first copy static (sequence preserved, choreography removed, §6). */
+.ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker-scroll 36s linear infinite;
+}
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track {
+    animation: none;
+  }
+}
+
+/* Safe-area padding for the persistent mobile bottom navigation (§4). */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Editorial serif accent: one phrase, never body copy (§2 Type). Noto Serif JP carries
+   no true italics; the slant is the deliberate faux-italic the reference uses. */
+.editorial-accent {
+  font-family: var(--font-editorial);
+  font-style: italic;
+}
+
+/* No-JS fallback only: the pre-paint script normally sets data-theme before first paint.
+   Values are the dark table from REFERENCE-DESIGN §2, duplicated verbatim by design. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --canvas: #050505;
+    --surface: #0c0c0c;
+    --surface-strong: #171717;
+    --ink: #ffffff;
+    --ink-muted: #a3a3a3;
+    --rule: rgba(255, 255, 255, 0.06);
+    --brand: #e04d26;
+    --brand-deep: #b83a1b;
+    --up: #34d399;
+    --down: #fb7185;
+    --waiting: #d69a3a;
+    --recorded: #8f8a82;
+  }
+}

@@ -95,6 +95,29 @@ export default tseslint.config(
       ],
       // Styling law §7: inline style objects cost hover/breakpoints/responsiveness (zk-freighter shipped a separate mobile app to apologize for this).
       "react/forbid-dom-props": ["error", { forbid: ["style"] }],
+      // Chip single-renderer law (Story 3.1, UX-DR2): the chip-state literals render only
+      // through StateChip over shared deriveMarketChip. Flat config replaces rule entries
+      // wholesale, so the AD-6 chain-id selectors are restated here for web files.
+      "no-restricted-syntax": [
+        "error",
+        { selector: "Literal[value=102031]", message: "Chain ids live only in packages/chain (AD-6)." },
+        { selector: "Literal[value=11155111]", message: "Chain ids live only in packages/chain (AD-6)." },
+        { selector: "Literal[value='awaiting attestation']", message: "Chip states render only via StateChip (UX-DR2)." },
+        { selector: "Literal[value='proof verified']", message: "Chip states render only via StateChip (UX-DR2)." },
+        { selector: "Literal[value='voided']", message: "Chip states render only via StateChip (UX-DR2)." },
+        { selector: "Literal[value='stuck']", message: "Chip states render only via StateChip (UX-DR2)." },
+      ],
+    },
+  },
+  {
+    // The single sanctioned chip renderer keeps only the AD-6 selectors.
+    files: ["apps/web/components/state-chip.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        { selector: "Literal[value=102031]", message: "Chain ids live only in packages/chain (AD-6)." },
+        { selector: "Literal[value=11155111]", message: "Chain ids live only in packages/chain (AD-6)." },
+      ],
     },
   },
   {
