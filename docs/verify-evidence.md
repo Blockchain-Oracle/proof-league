@@ -63,3 +63,58 @@ precisely the condition that gate exists to detect. The script was wrong, not th
 Both live-core scripts now publish the canonical empty document to both homes and prove it
 readable before committing, and the core was redeployed while it was 35 minutes old and
 held nothing else.
+
+---
+
+## `verify:settlement` — 2026-09-03, clean deployment
+
+Same path, run against `0xFe8C5438..7493` with the pick-set published for real this time:
+
+```
+Sepolia round 3, settleBlock 11626738
+market 4 on sourceKey 0x200187ee5ee74b83744ade8d2f5069a0110d5c255f8bbb200ad7384a8d8f2889
+empty pick-set published and committed:
+  picksets/4-ce9cfc53748a479d5346aacaa46dc4cffaf48db7d9b9c1ecc2ff9d8ae9ff510a.json
+RoundSettled on Sepolia: 0xc07efdc06fdc63d3dd86e068c013d660071f00b5383eb9baf8cb04e9e423bae5
+PASS — watch -> attest -> prove (hosted) -> submit -> project on testnet.
+  event 1788440604 -> attested 1788441135 (+531s) -> proven 1788441165 (+561s)
+  target (measured attestation + 5 min): 810s — met
+  cost cliff 3600s: under
+  proof tx: 0x8b2fcf3c5ce787e3c43a49c18b049e3996e37cb2f6e56e4f40fa4298c8b5b1b0
+```
+
+Nine minutes 21 seconds, inside target again, on a second independent run.
+
+## The rest of the machine, over that settlement
+
+The production worker was then run against the same core and every duty executed on real
+state: it scored market 4 (the canonical empty-set opening, `MarketFullyScored`), voided
+the market left over from a failed fixture run, and projected all four markets. `pnpm
+rebuild` then reconstructed the core from chain plus published pick-sets and diffed clean
+at `markets=4 resolutions=1`.
+
+```
+rebuild: LIVE — reconstructing core 0xFe8C5438..7493 (logs from block 5423291)
+rebuild: PASS — every class-1 row re-derived and diffed clean (markets=4 resolutions=1)
+```
+
+Running it also found a real bug worth recording: the projector's log scan started at
+genesis and timed out against the public RPC, because the deployment block was recorded
+in config but never passed to the scan. Reading a log line beats reasoning about one.
+
+## Reference-fidelity pass (Story 3.1, NFR-8)
+
+Checked in a real browser rather than from clean-load screenshots alone:
+
+| Check | Result |
+|---|---|
+| 1440x1000 desktop, dark and light | header with the five jobs, ticker, section rhythm, crop ticks, grain overlay present |
+| Live toggle dark -> light and light -> dark | canvas moves between `#050505` and `#F4EEE3` in place; semantic colors re-derive, none stale |
+| Toggle accessibility | label flips between "Switch to light theme" and "Switch to dark theme"; visible state shows the current theme; choice persists to `pl.theme.v1` |
+| 390x844 and 360x800 | compact header, all five jobs in the safe-area bottom nav, rows reflow |
+| Horizontal overflow at 360px | `scrollWidth == clientWidth`, zero elements past the viewport |
+| Touch targets | bottom-nav links measure 44px |
+| State chips over live data | three voided markets render the ash treatment, the settled one renders proof verified |
+
+The remaining fidelity work is the states this build has no data for yet (first-run,
+awaiting attestation, a player's own pick), which arrive with the stories that own them.

@@ -314,7 +314,8 @@ const main = async (): Promise<void> => {
 
   const stateDir = readStateDir(process.env);
   const mirrorDir = readPicksetPublisherConfig(process.env, join(stateDir, "rebuild")).mirrorDir;
-  const fromBlock = BigInt(process.env.REBUILD_FROM_BLOCK ?? 0);
+  // Same reason as the projector: scanning from genesis times the public RPC out.
+  const fromBlock = BigInt(process.env.REBUILD_FROM_BLOCK ?? DEPLOYED.deployBlock ?? 0);
   log.info(`rebuild: LIVE — reconstructing core ${core} from chain + published pick-sets (logs from block ${fromBlock})`);
   const expected = await reconstruct(core, mirrorDir, fromBlock);
   const actual = await loadProjection(databaseUrl, core);

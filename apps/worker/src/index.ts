@@ -137,6 +137,10 @@ if (gateway === undefined) {
           db: database.db,
           mirrorDir: publisherConfig.mirrorDir,
           cursor: store.projectorOf(core.toLowerCase()),
+          // Without this the first scan asks for every log since genesis and the public
+          // RPC times out, so the projector never gets past its first round. The
+          // deployment block is recorded for exactly this reason.
+          initialScanBlock: DEPLOYED.deployBlock,
         });
       } catch (error) {
         logger.error({ err: error }, "[worker] projector round failed");
