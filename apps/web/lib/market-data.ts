@@ -1,6 +1,6 @@
 import { createPublicClient, http, type Address } from "viem";
 import { creditCoin3Testnet, DEPLOYED, proofGatewayAbi, readEndpoints } from "@proof-league/chain";
-import { and, createDb, desc, eq, markets, resolutions, type Db } from "@proof-league/shared/db";
+import { and, createDb, desc, eq, markets, resolutions, transparencyObservations, type Db } from "@proof-league/shared/db";
 
 // Server-side class-1 reads (AD-8/AD-18): the web is a WINDOW on the projection, never a
 // computer of outcomes. Absent DATABASE_URL (or any read failure) surfaces as an honest
@@ -180,5 +180,31 @@ export const marketDetail = async (marketId: string): Promise<MarketDetail | und
     };
   } catch {
     return undefined;
+  }
+};
+
+export type TransparencyRow = {
+  readonly id: number;
+  readonly atSec: number;
+  readonly sourceKey: string;
+  readonly marketIds: readonly string[];
+  readonly phase: "event" | "attested" | "proven" | "note";
+  readonly evidenceClass: "observed" | "proven";
+  readonly txHash: string | null;
+  readonly overCliff: boolean | null;
+  readonly note: string | null;
+};
+
+/// The worker's phase log (class 2, AD-18). These are OBSERVATIONS, not truth: the page
+/// labels them as such, and the only rows that carry proof are the ones whose Creditcoin
+/// transaction is right there to check. Not scoped by core because the log is keyed by
+/// source key rather than by deployment; the page says which markets each row is about.
+export const transparencyLog = async (limit = 60): Promise<TransparencyRow[]> => {
+  const db = dbOrUndefined();
+  if (db === undefined) return [];
+  try {
+    return await db.select().from(transparencyObservations).orderBy(desc(transparencyObservations.id)).limit(limit);
+  } catch {
+    return [];
   }
 };
