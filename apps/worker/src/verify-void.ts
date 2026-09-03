@@ -1,10 +1,13 @@
 import { scriptLogger } from "./logger.js";
 
 const log = scriptLogger();
-import { keccak256, parseEventLogs, sha256, stringToHex, zeroHash } from "viem";
+import { keccak256, parseEventLogs, stringToHex } from "viem";
 import { DEPLOYED, leagueCoreAbi, proofGatewayAbi, readEndpoints } from "@proof-league/chain";
 import { CONTRACT_MARKET_STATES, MIN_COMMIT_MARGIN_SEC, utcDayOf } from "@proof-league/shared";
 import { cc3Clients, readWorkerKey, type Cc3Clients } from "./cc3.js";
+import { commitEmptyPickSet } from "./pickset/empty-set.js";
+import { PickSetPublisher, readPicksetPublisherConfig } from "./pickset/publish.js";
+import { readStateDir } from "./state.js";
 
 // verify:void (CONVENTIONS §8, Story 2.6): one focused testnet evidence run of AD-19's
 // judged claim — void is a clock fact nobody can invoke early. Drives BOTH terminal edges
@@ -106,14 +109,15 @@ const main = async (): Promise<void> => {
   log.info(`verify:void: created markets ${committedId} (will commit) and ${missedId} (never commits)`);
 
   await waitForChainTime(clients, lockTime, "lockTime");
-  // The canonical empty commitment (AD-14): zero-pick markets commit and proceed.
-  const commitHash = await clients.walletClient.writeContract({
-    ...contract,
-    functionName: "commitPicks",
-    args: [committedId, zeroHash, "local:verify-void/empty-set.json", sha256(stringToHex("[]"))],
-  });
-  await clients.publicClient.waitForTransactionReceipt({ hash: commitHash });
-  log.info(`verify:void: committed empty set to ${committedId}: ${commitHash}`);
+  // The canonical empty commitment (AD-14), PUBLISHED for real: this script drives the
+  // live deployment, so its markets have to survive `pnpm rebuild` like any other.
+  const committed = await commitEmptyPickSet(
+    clients,
+    core,
+    committedId,
+    new PickSetPublisher(readPicksetPublisherConfig(process.env, readStateDir(process.env))),
+  );
+  log.info(`verify:void: empty pick-set published and committed to ${committedId}: ${committed.uri}`);
 
   // The guard, probed live: before the deadline the same call must refuse with the named
   // error (a network hiccup must not pass as evidence), spending no gas.

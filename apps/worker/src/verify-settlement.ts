@@ -2,7 +2,7 @@ import { scriptLogger } from "./logger.js";
 
 const log = scriptLogger();
 import { join } from "node:path";
-import { createWalletClient, http, keccak256, numberToHex, parseEventLogs, sha256, stringToHex, zeroHash } from "viem";
+import { createWalletClient, http, keccak256, numberToHex, parseEventLogs, stringToHex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
   DEPLOYED,
@@ -21,6 +21,8 @@ import {
 } from "@proof-league/shared";
 import { cc3Clients, readWorkerKey, type Cc3Clients } from "./cc3.js";
 import { FileTransparencyProjection } from "./pipeline/project.js";
+import { commitEmptyPickSet } from "./pickset/empty-set.js";
+import { PickSetPublisher, readPicksetPublisherConfig } from "./pickset/publish.js";
 import { runSettlementRound } from "./pipeline/settlement-round.js";
 import type { SettlementContext } from "./pipeline/types.js";
 import { resolveSources } from "./sources.js";
@@ -145,13 +147,15 @@ const main = async (): Promise<void> => {
   log.info(`verify:settlement: market ${marketId} on sourceKey ${sourceKey}`);
 
   await waitForChainTime(clients, lockTime, "lockTime");
-  // The canonical empty commitment (AD-14): zero-pick markets commit and proceed.
-  const commitHash = await clients.walletClient.writeContract({
-    ...coreContract,
-    functionName: "commitPicks",
-    args: [marketId, zeroHash, "local:verify-settlement/empty-set.json", sha256(stringToHex("[]"))],
-  });
-  await clients.publicClient.waitForTransactionReceipt({ hash: commitHash });
+  // The canonical empty commitment (AD-14), PUBLISHED for real: this script drives the
+  // live deployment, so its market has to survive `pnpm rebuild` like any other.
+  const committed = await commitEmptyPickSet(
+    clients,
+    core,
+    marketId,
+    new PickSetPublisher(readPicksetPublisherConfig(process.env, readStateDir(process.env))),
+  );
+  log.info(`verify:settlement: empty pick-set published and committed: ${committed.uri}`);
 
   // -- the source event: permissionless settle once the pre-committed block is mined ---
   for (;;) {

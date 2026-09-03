@@ -23,6 +23,7 @@ import { creditCoin3Testnet } from "@proof-league/chain";
 import { loadPickSet } from "./pickset/load.js";
 import { readPicksetPublisherConfig } from "./pickset/publish.js";
 import { verifySeriesConformance } from "./series-conformance.js";
+import { diffTruth, emptyTruth, type TruthTables } from "./truth-diff.js";
 import { readStateDir } from "./state.js";
 
 // pnpm rebuild (Story 2.9, AD-8/AD-18): the proof that the database is just a cache of
@@ -40,38 +41,6 @@ const fail = (message: string): never => {
   process.exit(1);
 };
 
-// One canonical shape for "all class-1 truth": maps keyed by row identity, values
-// JSON-comparable. Both the chain reconstruction and the database load produce this.
-type Truth = Record<string, Record<string, unknown>>;
-type TruthTables = {
-  markets: Truth;
-  committedPicks: Truth;
-  resolutions: Truth;
-  scores: Truth;
-  standings: Truth;
-};
-
-const diffTruth = (expected: TruthTables, actual: TruthTables): string[] => {
-  const diffs: string[] = [];
-  for (const table of Object.keys(expected) as (keyof TruthTables)[]) {
-    const exp = expected[table];
-    const act = actual[table];
-    for (const key of Object.keys(exp)) {
-      if (!(key in act)) {
-        diffs.push(`${table}[${key}]: reconstructed from chain but MISSING from the database`);
-        continue;
-      }
-      const expJson = JSON.stringify(exp[key], Object.keys(exp[key] as object).sort());
-      const actJson = JSON.stringify(act[key], Object.keys(exp[key] as object).sort());
-      if (expJson !== actJson) diffs.push(`${table}[${key}]: chain says ${expJson} but database says ${actJson}`);
-    }
-    for (const key of Object.keys(act)) {
-      if (!(key in exp)) diffs.push(`${table}[${key}]: in the database but NOT reconstructable from chain`);
-    }
-  }
-  return diffs;
-};
-
 const SKIP_REASONS = ["OutOfOrder", "Superseded", "Tombstone", "ForeignMarket", "OverBudget"] as const;
 
 /// The chain-side reconstruction: everything class-1, from public reads only.
@@ -80,7 +49,10 @@ const reconstruct = async (core: Address, mirrorDir: string, fromBlock: bigint):
   const publicClient = createPublicClient({ chain: creditCoin3Testnet, transport: http(endpoints.CC3_RPC_URL) });
   const contract = { address: core, abi: leagueCoreAbi } as const;
   const domain: PickDomain = { chainId: creditCoin3Testnet.id, verifyingContract: core };
-  const truth: TruthTables = { markets: {}, committedPicks: {}, resolutions: {}, scores: {}, standings: {} };
+  const truth: TruthTables = emptyTruth();
+  // Markets whose committed pick-set cannot be loaded or verified. Collected rather than
+  // thrown so the run reports every one, then fails once with all of them named.
+  const unreconstructable: string[] = [];
 
   const count = await publicClient.readContract({ ...contract, functionName: "marketCount" });
   for (let marketId = 1n; marketId <= count; marketId++) {
@@ -136,7 +108,14 @@ const reconstruct = async (core: Address, mirrorDir: string, fromBlock: bigint):
           };
         }
       } catch (error) {
-        if (!String(error).includes("NotCommitted")) throw error; // Created -> Voided has no commitment
+        if (String(error).includes("NotCommitted")) {
+          // The Created -> Voided edge: no commitment was ever made, so no row is owed.
+        } else {
+          // A commitment whose published bytes cannot be loaded is exactly what this gate
+          // exists to catch: that Market's picks are not reconstructable by anyone. Report
+          // it as a named diff and keep going, so one bad row does not hide the rest.
+          unreconstructable.push(`market ${key}: ${String(error).replace(/^Error:\s*/, "")}`);
+        }
       }
     }
     truth.markets[key] = row;
@@ -231,6 +210,12 @@ const reconstruct = async (core: Address, mirrorDir: string, fromBlock: bigint):
     for (const diff of seriesDiffs) log.error(`rebuild: SERIES DIFF — ${diff}`);
     return fail(`${seriesDiffs.length} series instance(s) disagree with the registered formula`);
   }
+  if (unreconstructable.length > 0) {
+    for (const row of unreconstructable) log.error(`rebuild: UNRECONSTRUCTABLE — ${row}`);
+    return fail(
+      `${unreconstructable.length} committed market(s) have no loadable published pick-set — their picks are not reconstructable by anyone`,
+    );
+  }
   return truth;
 };
 
@@ -238,7 +223,7 @@ const reconstruct = async (core: Address, mirrorDir: string, fromBlock: bigint):
 const loadProjection = async (databaseUrl: string, core: Address): Promise<TruthTables> => {
   const database = createDb(databaseUrl);
   const coreKey = core.toLowerCase();
-  const truth: TruthTables = { markets: {}, committedPicks: {}, resolutions: {}, scores: {}, standings: {} };
+  const truth: TruthTables = emptyTruth();
   // Identity columns (core/marketId/leafIndex/player) stay on the rows: diffTruth
   // serializes with the CHAIN side's key list, so identity keys compare via the map key
   // and extra columns can never mask a truth mismatch.
