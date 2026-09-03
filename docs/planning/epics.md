@@ -420,9 +420,9 @@ So that void is a clock fact and stuck stays honest.
 **When** anyone calls `void(marketId)`
 **Then** it voids terminally with no stake movement — the `Created → Voided` edge exists, so a missed commit can never freeze a market forever — AD-19, AD-14
 
-**Given** a Market before `voidDeadline`, or with an accepted proof
+**Given** a Market before `voidDeadline`, or one an accepted proof already resolved
 **When** `void` is called
-**Then** it reverts — the stuck case can never be voided while its event exists — AD-19, NFR1
+**Then** it reverts — the stuck case can never be voided while its event exists. **Amended [review 2026-09-03]:** "with an accepted proof" is enforced through the terminal-state check, never a per-key `acceptedAt` read — a Committed sibling the fan-out *skipped* on a now-consumed key can never resolve again, so it stays voidable past its deadline (negative-tested both ways; see AD-19's amendment for the freeze/deadlock this prevents) — AD-19, NFR1
 **And** the worker's loop submits `void()` for every eligible market itself (permissionless — anyone can, the worker does), and `verify:void` exercises the path end-to-end on testnet [review 2026-08-31] — AD-19, CONVENTIONS §8
 
 ### Story 2.7: ContestSource on Sepolia — outcomes nobody can influence

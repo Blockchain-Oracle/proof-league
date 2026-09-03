@@ -6,7 +6,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "verify:void": "tsx src/verify-void.ts"
   },
   "dependencies": {
     "@gluwa/usc-sdk": "0.18.0",

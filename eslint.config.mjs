@@ -44,6 +44,13 @@ export default tseslint.config(
     },
   },
   {
+    // The per-file exemption promised above (after the max-lines block — flat config
+    // replaces wholesale): /abis/ holds only machine-written artifacts
+    // (scripts/abi-export.mjs, CI-freshness-gated); the raw-lines sweep exempts the same path.
+    files: ["packages/*/src/abis/**/*.ts"],
+    rules: { "max-lines": "off" },
+  },
+  {
     // AD-2 import zones: packages must never depend on apps (one dependency direction).
     files: ["packages/**/*.{ts,tsx}"],
     rules: {

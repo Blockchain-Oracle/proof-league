@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {StdStorage, stdStorage} from "forge-std/Test.sol";
 import {LeagueCore, MarketConfig, MarketState, Resolution} from "../src/LeagueCore.sol";
 import {ProofGateway} from "../src/ProofGateway.sol";
 import {IProofDecoder} from "../src/IProofDecoder.sol";
@@ -16,8 +15,6 @@ import {GatewayTestBase} from "./helpers/GatewayTestBase.sol";
 /// blind-verified reference receipt: the rate-ratio yield (the base's _lidoConfig) and
 /// the sharesMintedAsFees figure, decoded from the same words by different decoders.
 contract ProofGatewayFanOutTest is GatewayTestBase {
-    using stdStorage for StdStorage;
-
     uint32 internal feesDecoderId;
 
     function setUp() public override {
@@ -102,11 +99,12 @@ contract ProofGatewayFanOutTest is GatewayTestBase {
 
     // ---- AC 2: non-Committed siblings skip, never revert (AD-4 isolation) ----
 
-    /// The voided-sibling negative, testable before Story 2.6 ships void(): the sibling's
-    /// state slot is forced to the Voided enum value AD-19 will mint, through the same
-    /// stateOf surface the fan-out reads. Created FIRST, so the loop must survive it
-    /// before reaching the healthy market — a revert on the voided sibling would fail
-    /// this verify, and that is exactly what the AC forbids.
+    /// The voided-sibling negative through the REAL Story 2.6 edge (this test forced the
+    /// state slot with stdstore before void() existed): both siblings committed, one
+    /// voided past the shared deadline, and the late proof must still settle the other —
+    /// verify has no deadline of its own (AD-19's race: until a void is mined, a stalled
+    /// proof may still land). Voided FIRST in creation order, so the loop must survive
+    /// it before reaching the healthy market — a revert there is exactly what AC 2 forbids.
     function test_verify_voidedSiblingNeverRevertsTheSettle() public {
         MarketConfig memory yield = _lidoConfig();
         uint256 voidedId = _create(yield);
@@ -114,8 +112,8 @@ contract ProofGatewayFanOutTest is GatewayTestBase {
         vm.warp(yield.lockTime);
         _commit(voidedId, "supabase://picksets/voided.json");
         _commit(healthyId, "supabase://picksets/healthy.json");
-        stdstore.target(address(league)).sig(league.stateOf.selector).with_key(voidedId)
-            .checked_write(uint256(MarketState.Voided));
+        vm.warp(yield.voidDeadline + 1);
+        league.void(voidedId);
 
         bytes32 key = league.sourceKeyOf(_lidoConfig());
         bytes memory txBytes = _armed(_referenceTx());
@@ -176,6 +174,44 @@ contract ProofGatewayFanOutTest is GatewayTestBase {
 
         assertEq(uint8(league.stateOf(openId)), uint8(MarketState.Resolved));
         assertEq(uint8(league.stateOf(preOpenId)), uint8(MarketState.Committed));
+    }
+
+    /// The AD-19 amendment, pinned under the shipped wiring [review 2026-09-03]: a
+    /// Committed sibling the fan-out SKIPPED sits on a consumed key (first accepted
+    /// proof wins — no later proof can ever be accepted), so "no accepted proof on the
+    /// sourceKey" as a void precondition would freeze it in Committed forever, deadlock
+    /// AD-17's all-terminal payout gate, and break the fan-out's own promise that a
+    /// skipped market's stakes come back through void. Void therefore ignores
+    /// acceptedAt: past its deadline the stranded sibling voids, stakes return
+    /// structurally, and the resolved sibling stays the key's one settlement.
+    function test_void_committedSiblingSkippedOnConsumedKeyStillVoids() public {
+        MarketConfig memory preOpen = _lidoConfig();
+        preOpen.lockTime = uint64(LidoReceiptFixture.REPORT_TIMESTAMP) - 299;
+        preOpen.sourceWindowOpen = uint64(LidoReceiptFixture.REPORT_TIMESTAMP) + 1;
+        preOpen.determinismHorizon = preOpen.sourceWindowOpen;
+        preOpen.voidDeadline = preOpen.sourceWindowOpen + 24 hours;
+        MarketConfig memory open = _feesConfig();
+        open.lockTime = uint64(LidoReceiptFixture.REPORT_TIMESTAMP) - 300;
+        open.sourceWindowOpen = uint64(LidoReceiptFixture.REPORT_TIMESTAMP);
+        open.determinismHorizon = open.sourceWindowOpen;
+        open.voidDeadline = open.sourceWindowOpen + 24 hours;
+
+        uint256 preOpenId = _create(preOpen);
+        uint256 openId = _create(open);
+        vm.warp(preOpen.lockTime);
+        _commit(preOpenId, "supabase://picksets/pre.json");
+        _commit(openId, "supabase://picksets/open.json");
+        bytes32 key = league.sourceKeyOf(preOpen);
+        _verify(key, _armed(_referenceTx()));
+        // The key is consumed and the skipped sibling is still Committed: without the
+        // amendment this market could never reach ANY terminal state again.
+        assertGt(gateway.acceptedAt(key), 0);
+        assertEq(uint8(league.stateOf(preOpenId)), uint8(MarketState.Committed));
+
+        vm.warp(preOpen.voidDeadline + 1);
+        league.void(preOpenId);
+        assertEq(uint8(league.stateOf(preOpenId)), uint8(MarketState.Voided));
+        assertEq(uint8(league.stateOf(openId)), uint8(MarketState.Resolved));
     }
 
     // ---- the resolver gate, seen from outside the pair (AD-20) ----

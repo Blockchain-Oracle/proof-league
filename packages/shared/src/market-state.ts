@@ -1,6 +1,11 @@
 // Derived display states are pure functions of (class-1 state, Market config, chain time) —
 // defined once here so StateChip is the single renderer and no surface can invent a state (AD-18).
-export type ContractMarketState = "Created" | "Committed" | "Resolved" | "Voided";
+
+// The on-chain enum's wire order, exactly LeagueTypes.sol's MarketState: the index IS the
+// uint8 stateOf(marketId) returns, so the worker and projection decode state numbers
+// through this one array and can never disagree with the contract's encoding.
+export const CONTRACT_MARKET_STATES = ["Created", "Committed", "Resolved", "Voided"] as const;
+export type ContractMarketState = (typeof CONTRACT_MARKET_STATES)[number];
 
 // Exactly the seven chips (plus Pick-level "pending", which lives with the Pick, not the Market).
 export type MarketChip =

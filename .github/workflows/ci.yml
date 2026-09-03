@@ -42,3 +42,8 @@ jobs:
         working-directory: contracts
       - run: forge test -vv
         working-directory: contracts
+      # ABI freshness gate (Story 2.6, the shared-vectors pattern): the committed viem
+      # surface must be the compiled contract's own ABI, or the worker would sign
+      # transactions against a stale shape.
+      - run: node scripts/abi-export.mjs
+      - run: git diff --exit-code packages/chain/src/abis/

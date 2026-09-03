@@ -141,6 +141,14 @@ library LeagueScoring {
         s.commitOrdinal[marketId] = ++s.commitCount;
     }
 
+    /// Story 2.6's terminal edge in the day ledger: a voided market counts toward its
+    /// leagueDay's completion exactly like a fully-scored one — while its picks, never
+    /// scored, leave every aggregate and dailySpent untouched (AD-15's structural stake
+    /// return, AD-16's "voided Picks never count").
+    function noteVoided(State storage s, uint32 leagueDay) internal {
+        _markTerminalForDay(s, leagueDay);
+    }
+
     // -- the scoring machine ---------------------------------------------------------
 
     /// One contiguous batch of leaves [batchStart, batchStart + picks.length). Every
@@ -311,12 +319,17 @@ library LeagueScoring {
         }
         prog.fullyScored = true;
         emit MarketFullyScored(ctx.marketId);
-        DayMarkets storage dm = s.dayMarkets[ctx.leagueDay];
+        _markTerminalForDay(s, ctx.leagueDay);
+    }
+
+    /// Shared by full scoring and void — the only two ways a market turns terminal for
+    /// its day. DayFinalized is the projection's cue to re-read affected streaks
+    /// (class-2 recompute); the chain's own streak answer is always the live fold below,
+    /// so the event carries no truth a view couldn't reproduce (AD-8).
+    function _markTerminalForDay(State storage s, uint32 leagueDay) private {
+        DayMarkets storage dm = s.dayMarkets[leagueDay];
         dm.terminal += 1;
-        // The projection's cue to re-read affected streaks (class-2 recompute); the
-        // chain's own streak answer is always the live fold below, so the event carries
-        // no truth a view couldn't reproduce (AD-8).
-        if (dm.terminal == dm.created) emit DayFinalized(ctx.leagueDay);
+        if (dm.terminal == dm.created) emit DayFinalized(leagueDay);
     }
 
     // -- the streak fold (AD-16) -----------------------------------------------------

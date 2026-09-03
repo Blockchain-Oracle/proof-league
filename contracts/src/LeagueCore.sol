@@ -54,12 +54,15 @@ contract LeagueCore {
     error NotResolved();
     error SourceKeyFull();
     error MarketNotScorable();
+    error VoidBeforeDeadline();
+    error MarketNotVoidable();
 
     event MarketCreated(uint256 indexed marketId, bytes32 indexed sourceKey, MarketConfig config);
     event PicksCommitted(uint256 indexed marketId, bytes32 root, string uri, bytes32 sha256Hash);
     event MarketResolved(
         uint256 indexed marketId, bytes32 indexed sourceKey, int256 value, uint8 winningOption, uint64 occurredAt
     );
+    event MarketVoided(uint256 indexed marketId, bytes32 indexed sourceKey);
 
     // Fixed at construction with no mutator: adding a creator is a redeploy, never a
     // privileged call (AD-20; fully permissionless creation was rejected as a direct DoS
@@ -202,6 +205,37 @@ contract LeagueCore {
         _resolutions[marketId] =
             Resolution({value: value, occurredAt: occurredAt, resolvedAt: resolvedAt, winningOption: winningOption});
         emit MarketResolved(marketId, LeagueCanon.sourceKeyOf(config), value, winningOption, occurredAt);
+    }
+
+    /// AD-19 (Story 2.6): the guarded, terminal, permissionless timeout. Eligibility is a
+    /// pure function of state and the chain clock — strictly past voidDeadline, non-terminal
+    /// only — so every admitted market is guaranteed a reachable terminal state: before the
+    /// deadline it may resolve, after it anyone can void, and nothing can block both (the
+    /// liveness AD-17's all-terminal payout gate stands on). Stake return is structural,
+    /// keyed by the signed utcDay (AD-15): dailySpent debits only at scoring and a voided
+    /// market can never reach scoreBatch (Resolved-only), so committed stakes were never
+    /// taken. AD-19's "no accepted proof on the sourceKey" conjunct is deliberately NOT a
+    /// per-key gateway read [review 2026-09-03]: resolution happens only inside verify(),
+    /// atomically with the key's acceptance, so a market the proof settled already reverts
+    /// here as terminal — while a Committed sibling the fan-out SKIPPED on a now-consumed
+    /// key (pre-open window, unreadable decoder) can never resolve again, and reading the
+    /// key would freeze it forever, the exact class AD-19's Created branch exists to kill.
+    /// Both facts are pinned by test: resolved-market void reverts; skipped-sibling void
+    /// succeeds (ProofGatewayFanOut suite).
+    function void(uint256 marketId) external {
+        _requireKnown(marketId);
+        MarketState state = _states[marketId];
+        if (state != MarketState.Created && state != MarketState.Committed) revert MarketNotVoidable();
+        MarketConfig storage config = _configs[marketId];
+        // Chain-head time is the one deciding clock (AD-10); the void clock is strict —
+        // at the deadline itself the proof still owns the moment.
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp <= config.voidDeadline) revert VoidBeforeDeadline();
+        _states[marketId] = MarketState.Voided;
+        // The day-completeness half of the season-safety promise (AD-16): a voided market
+        // stops holding its leagueDay provisional, so streaks and the payout gate advance.
+        LeagueScoring.noteVoided(_scoring, config.leagueDay);
+        emit MarketVoided(marketId, LeagueCanon.sourceKeyOf(config));
     }
 
     /// Story 2.5 (AD-4/AD-15/AD-16): permissionless, exactly-once, budget-capped batch

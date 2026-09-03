@@ -53,8 +53,11 @@ contract ProofGateway {
     mapping(uint32 => address) private _decoders;
 
     // Check 5's replay guard and AD-4's "first accepted proof wins", keyed by sourceKey:
-    // the Creditcoin chain-head time at acceptance, 0 while none. Story 2.6's void reads
-    // this to prove "no accepted proof on its source key".
+    // the Creditcoin chain-head time at acceptance, 0 while none. LeagueCore.void
+    // deliberately does NOT read this [review 2026-09-03]: acceptance is atomic with
+    // resolution, so a market the proof settled is already terminal to void's state
+    // check — while a sibling this fan-out SKIPPED can never resolve on the consumed
+    // key, and gating its void on this mapping would freeze it forever (see void's doc).
     mapping(bytes32 => uint64) public acceptedAt;
 
     constructor(address[] memory creators, address[] memory registrars) {
