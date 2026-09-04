@@ -11,13 +11,19 @@ export function Header() {
       <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-4 px-6 md:h-16 md:px-8">
         <Link href="/" className="flex items-center gap-2.5 text-ink" aria-label="Proof League home">
           <Mark id="proof-league" size={22} />
-          <span className="font-display text-base font-bold tracking-tight">Proof League</span>
+          {/* The wordmark folds away under 640px so the mark, More, theme and account all
+              fit at 360 without the page scrolling sideways. The link keeps its accessible
+              name either way, so nothing is lost to a screen reader. */}
+          <span className="hidden font-display text-base font-bold tracking-tight sm:inline">Proof League</span>
         </Link>
         <HeaderNav />
         <div className="flex items-center gap-2">
-          <span className="hidden md:inline">
-            <MoreButton />
-          </span>
+          {/* More is NOT desktop-only. The bottom bar carries the five primary jobs, so on a
+              phone this control is the only route to Transparency and to everything else
+              that is not a primary job. Hiding it below md left mobile with no way to reach
+              them at all, which is the desktop-only navigation the inventory forbids
+              outright (law 9). Caught at 360px in the browser, not in review. */}
+          <MoreButton />
           <ThemeToggle />
           <AccountButton />
         </div>

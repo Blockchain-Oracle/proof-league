@@ -47,7 +47,11 @@ const bodySchema = z.object({
 const REFUSAL: Record<IntakeRefusal, { status: number; message: string; nextAction: string }> = {
   "market-not-open": {
     status: 409,
-    message: "This Market is no longer taking Picks. Its set has been committed on-chain, and nothing can be added to a set that is already pinned by hash.",
+    // `admitPick` refuses every state that is not Created, which is committed, settled AND
+    // voided. The sentence therefore has to be true of all three: an earlier version
+    // asserted the set had been committed, which reads as a lie on a Market that voided
+    // without ever committing one.
+    message: "This Market is no longer taking Picks. Its state on-chain has already moved past the point where a Pick can join it.",
     nextAction: "Open the Markets board for one that is still open.",
   },
   "intake-closed": {
@@ -163,6 +167,9 @@ export async function POST(request: Request): Promise<Response> {
         status: "duplicate",
         marketId: body.marketId,
         nonce: body.nonce,
+        // The moment the Pick we already hold arrived, not the moment this retry did: a
+        // caller recovering from an unknown confirmation is asking about the first one.
+        receivedAtSec: existing.receivedAtSec,
         next: intakeState(drafts, existing.utcDay, body.marketId),
       },
       { status: 200 },
@@ -228,6 +235,9 @@ export async function POST(request: Request): Promise<Response> {
       status: outcome,
       marketId: body.marketId,
       nonce: body.nonce,
+      // Chain time, because it is when the Pick actually entered the set. A Card stamped
+      // with the browser's clock would print a time nothing else in the system agrees with.
+      receivedAtSec: nowSec,
       // What the composer needs to offer an edit without a second round trip.
       next: intakeState([...drafts, { marketId: body.marketId, nonce: body.nonce, stake: body.stake, utcDay: body.utcDay }], utcDayOf(nowSec), body.marketId),
     },
@@ -235,9 +245,10 @@ export async function POST(request: Request): Promise<Response> {
   );
 }
 
-/// What a composer needs before asking for a signature: the next legal nonce, the
-/// cumulative it must carry, and what is left of today. Derived by the same functions
-/// that will judge the pick, so the composer cannot sign something intake would refuse.
+/// What a composer needs before asking for a signature: the EIP-712 domain intake will
+/// verify against, the next legal nonce, the cumulative it must carry, and what is left of
+/// today. Derived by the same functions that will judge the pick, so the composer cannot
+/// sign something intake would refuse.
 export async function GET(request: Request): Promise<Response> {
   const db = projectionDb();
   const core = await deployedCore();
@@ -249,10 +260,18 @@ export async function GET(request: Request): Promise<Response> {
     return problem(400, "malformed", "A player address and a market id are required.", "Open the Market and try again.");
   }
   const drafts = await listPlayerDrafts(db, core.toLowerCase(), player);
-  const nowSec = Math.floor(Date.now() / 1000);
+  // The same clock POST admits against, for the same reason. A composer told the day by a
+  // server clock that has drifted across UTC midnight would sign the wrong utcDay and be
+  // refused by the rule this endpoint exists to help it satisfy.
+  const nowSec = (await chainClock()).chainNowSec;
   return Response.json(
     {
       utcDay: utcDayOf(nowSec),
+      // Served rather than plumbed through every page: the composer opens from the Market,
+      // from Reels and later from Games, and each of those knowing the deployment's core
+      // address is three chances to plumb it wrongly. Nothing is trusted on the way back
+      // in, because POST re-derives its own domain and verifies against that.
+      domain: { chainId: creditCoin3Testnet.id, verifyingContract: core },
       ...intakeState(drafts, utcDayOf(nowSec), marketId),
       onThisMarket: drafts.filter((draft) => draft.marketId === marketId),
     },

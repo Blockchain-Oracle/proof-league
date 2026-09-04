@@ -3,8 +3,9 @@ import { readEndpoints } from "@proof-league/chain";
 import { formatUtc } from "@proof-league/shared";
 import { Countdown } from "../../components/countdown.js";
 import { StateChip } from "../../components/state-chip.js";
-import { SettledRecordCard } from "../../components/settled-record.js";
+import { MarketReceipt } from "../../components/market/market-receipt.js";
 import { Mark } from "../../components/marks.js";
+import { chainClock } from "../../lib/chain-clock.js";
 import { boardMarketViews } from "../../lib/market-board.js";
 import { latestSettledOf, nextToLockOf } from "../../lib/market-view.js";
 
@@ -33,10 +34,11 @@ const STEPS = [
 ] as const;
 
 export default async function Home() {
-  const nowSec = Math.floor(Date.now() / 1000);
+  // Chain time (AD-10): the landing quotes the same clock the Market page and intake do.
+  const { chainNowSec } = await chainClock();
   // One board read serves both exhibits, through the same view model the Markets page
   // uses, so the landing cannot describe a Market differently from the board it links to.
-  const views = await boardMarketViews(nowSec);
+  const views = await boardMarketViews(chainNowSec);
   const featured = nextToLockOf(views);
   const settled = latestSettledOf(views);
   const explorerBase = readEndpoints(process.env).EXPLORER_BASE_CC3;
@@ -101,7 +103,7 @@ export default async function Home() {
           {settled === undefined ? (
             <div className="crop-ticks border border-rule bg-surface p-5">
               <span className="font-data text-xs uppercase tracking-widest text-ink-muted">
-                Settled record
+                Latest settled Market
               </span>
               <p className="mt-3 font-body text-sm text-ink-muted">
                 Nothing has settled on this deployment yet. When the first proof lands, the record
@@ -109,7 +111,7 @@ export default async function Home() {
               </p>
             </div>
           ) : (
-            <SettledRecordCard view={settled} explorerBase={explorerBase} />
+            <MarketReceipt view={settled} explorerBase={explorerBase} />
           )}
         </div>
       </section>

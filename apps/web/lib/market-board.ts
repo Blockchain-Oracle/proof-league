@@ -91,6 +91,25 @@ const pickCountsFor = async (
   return counts;
 };
 
+/// The same distribution fold for one Market, so the detail page shows the real spread the
+/// board shows rather than an empty one. Undefined means the projection could not be read;
+/// the caller renders the Market without a distribution rather than an invented zero.
+export const marketPickCounts = async (
+  marketId: string,
+  payoutN: number,
+  committedAt: number | null,
+): Promise<MarketPickCounts | undefined> => {
+  const db = projectionDb();
+  const core = await deployedCore();
+  if (db === undefined || core === undefined) return undefined;
+  try {
+    const counts = await pickCountsFor(db, core.toLowerCase(), [{ marketId, payoutN, committedAt }]);
+    return counts.get(marketId);
+  } catch {
+    return undefined;
+  }
+};
+
 export const boardMarketViews = async (nowSec: number): Promise<MarketView[]> => {
   const db = projectionDb();
   const core = await deployedCore();

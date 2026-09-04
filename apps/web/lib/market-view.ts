@@ -147,6 +147,11 @@ export type MarketView = {
   readonly question: string;
   readonly sourceLine: string;
   readonly chip: MarketChip;
+  /// The raw contract state, carried alongside the derived chip. The chip is a display
+  /// string with one renderer and no surface may branch on its text, but "can this still
+  /// take a Pick" and "which lifecycle stage is my Card in" are real questions that need
+  /// the state itself, and re-reading the row to answer them would be a second reading.
+  readonly state: ContractMarketState;
   readonly bucket: MarketBucket;
   readonly hostedRound: boolean;
   readonly lockTime: number;
@@ -216,6 +221,7 @@ export const marketViewOf = (
     leagueDay: row.leagueDay,
     question: subject.question,
     sourceLine: subject.sourceLine,
+    state: row.state,
     chip: deriveMarketChip(
       row.state,
       {

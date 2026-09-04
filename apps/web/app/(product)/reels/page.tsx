@@ -4,6 +4,9 @@ import { SectionHead } from "../../../components/shell/section-head.js";
 import { MarketCard } from "../../../components/market-card.js";
 import { LiveRefresh } from "../../../components/live-refresh.js";
 import { ReelKeys } from "../../../components/reel-keys.js";
+import { PointsComposer } from "../../../components/market/composer.js";
+import { composerAvailabilityOf } from "../../../features/picks/availability.js";
+import { chainClock } from "../../../lib/chain-clock.js";
 import { boardMarketViews } from "../../../lib/market-board.js";
 import { reelOrderOf } from "../../../lib/market-view.js";
 
@@ -22,8 +25,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ReelsPage({ searchParams }: { searchParams: Promise<{ at?: string }> }) {
   const { at } = await searchParams;
-  const nowSec = Math.floor(Date.now() / 1000);
-  const views = reelOrderOf(await boardMarketViews(nowSec));
+  // Chain time, the clock the contracts and intake use (AD-10), so a Market this feed shows
+  // as still open is one the door agrees is still open.
+  const { chainNowSec } = await chainClock();
+  const views = reelOrderOf(await boardMarketViews(chainNowSec));
   const explorerBase = readEndpoints(process.env).EXPLORER_BASE_CC3;
 
   if (views.length === 0) {
@@ -68,6 +73,24 @@ export default async function ReelsPage({ searchParams }: { searchParams: Promis
 
       <div className="flex-1">
         <MarketCard view={view} explorerBase={explorerBase} />
+        {/* The SAME composer the Market page opens (rebaseline section 5.1): a Game or a
+            feed may change how a Market is presented, and may never change what a Pick
+            costs, when it closes or what the signature covers. Reels imports the component
+            rather than growing a fast-feed version of it, which is the whole point of the
+            import ban on this route. */}
+        <div className="mt-6">
+          <PointsComposer
+            market={{
+              marketId: view.marketId,
+              question: view.question,
+              sourceLine: view.sourceLine,
+              options: view.options.map((option) => ({ index: option.index, label: option.label })),
+              lockTimeSec: view.lockTime,
+              expectedSettlementSec: view.expectedSettlement,
+            }}
+            availability={composerAvailabilityOf(view, chainNowSec)}
+          />
+        </div>
       </div>
 
       <nav className="flex items-center justify-between gap-3 border-t border-rule pt-4" aria-label="Reels navigation">

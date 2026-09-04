@@ -1,18 +1,22 @@
 import Link from "next/link";
 import { formatUtc } from "@proof-league/shared";
-import { StateChip } from "./state-chip.js";
-import { Mark } from "./marks.js";
-import type { MarketView } from "../lib/market-view.js";
+import { StateChip } from "../state-chip.js";
+import { Mark } from "../marks.js";
+import type { MarketView } from "../../lib/market-view.js";
 
-// The settled exhibit (Story 3.2, REFERENCE-DESIGN section 5 Record Card): the proof
-// leads, the links go somewhere real, and the option the value landed in is shown beside
-// the band it fell into. A settled record with a dead proof link would undercut the one
-// claim the product makes, so the link renders only when the transaction exists.
+// What the MARKET settled to: the decoded value, the band it fell into, the clock it took
+// and the transaction that proved it.
 //
-// It takes a canonical view rather than a row of its own: the decoded value is a number
-// in its decoder's units, and the view model is where that is decided once.
+// This was called SettledRecordCard until the 2026-09-03 review, which is worth recording
+// because the name was the bug. "Settled Record" is the Glossary's term for a PLAYER's Card
+// after scoring, and a component wearing that name while showing no player, no choice and
+// no lifecycle is how a product ends up believing it has a Card surface when it has a
+// receipt. The player's side of the same event is prediction-card.tsx.
+//
+// It takes a canonical view rather than a row of its own: the decoded value is a number in
+// its decoder's units, and the view model is where that is decided once.
 
-export function SettledRecordCard({ view, explorerBase }: { view: MarketView; explorerBase: string }) {
+export function MarketReceipt({ view, explorerBase }: { view: MarketView; explorerBase: string }) {
   const settlement = view.settlement;
   if (settlement === undefined) return null;
   const landed = view.options[settlement.winningOption];
@@ -20,7 +24,7 @@ export function SettledRecordCard({ view, explorerBase }: { view: MarketView; ex
     <article className="crop-ticks border border-rule bg-surface p-5">
       <div className="flex items-center justify-between gap-3">
         <span className="font-data text-xs uppercase tracking-widest text-ink-muted">
-          Settled record: market {view.marketId}
+          Market outcome: market {view.marketId}
         </span>
         <StateChip chip={view.chip} />
       </div>

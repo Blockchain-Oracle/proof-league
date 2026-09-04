@@ -3,6 +3,7 @@ import { readEndpoints } from "@proof-league/chain";
 import { SectionHead } from "../../../components/shell/section-head.js";
 import { MarketCard } from "../../../components/market-card.js";
 import { LiveRefresh } from "../../../components/live-refresh.js";
+import { chainClock } from "../../../lib/chain-clock.js";
 import { boardMarketViews } from "../../../lib/market-board.js";
 import { featuredOf, type MarketView } from "../../../lib/market-view.js";
 
@@ -70,8 +71,10 @@ export default async function MarketsPage({
 }) {
   const { view } = await searchParams;
   const filter: Filter = isFilter(view) ? view : "featured";
-  const nowSec = Math.floor(Date.now() / 1000);
-  const views = await boardMarketViews(nowSec);
+  // Chain time (AD-10), the same clock the Market page and intake use, so a row cannot say
+  // open here and closed one click later.
+  const { chainNowSec } = await chainClock();
+  const views = await boardMarketViews(chainNowSec);
   const explorerBase = readEndpoints(process.env).EXPLORER_BASE_CC3;
   const counts: Record<Filter, number> = {
     featured: views.length === 0 ? 0 : 1,
