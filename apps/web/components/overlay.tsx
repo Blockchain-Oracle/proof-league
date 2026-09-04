@@ -14,6 +14,9 @@ type OverlayApi = {
   readonly openSheet: (label: string, node: React.ReactNode) => void;
   readonly closeSheet: () => void;
   readonly toast: (text: string) => void;
+  /// The label of the sheet on screen, so an opener can tell whether it is the one open
+  /// (the Guide's teaser bubbles stay quiet while its drawer is up).
+  readonly sheetLabel: string | undefined;
 };
 
 const OverlayContext = createContext<OverlayApi | undefined>(undefined);
@@ -63,7 +66,7 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
   }, [sheet, closeSheet]);
 
   return (
-    <OverlayContext.Provider value={{ openSheet, closeSheet, toast }}>
+    <OverlayContext.Provider value={{ openSheet, closeSheet, toast, sheetLabel: sheet?.label }}>
       {children}
       {sheet === undefined ? null : (
         <div className="fixed inset-0 z-40">
@@ -71,7 +74,7 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
             type="button"
             aria-label="Close"
             onClick={closeSheet}
-            className="absolute inset-0 h-full w-full cursor-default bg-ink/30"
+            className="absolute inset-0 h-full w-full cursor-default bg-[rgba(4,10,7,.62)]"
           />
           <div
             ref={panel}
@@ -79,16 +82,16 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
             aria-modal="true"
             aria-label={sheet.label}
             tabIndex={-1}
-            className="safe-bottom absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto border-t border-rule bg-surface p-5 outline-none sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:w-96 sm:border-t-0 sm:border-l"
+            className="safe-bottom card-back absolute inset-x-0 bottom-0 max-h-[82vh] overflow-y-auto rounded-t-[22px] border-[3px] border-b-0 border-ink p-5 text-felt-text outline-none sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none sm:w-[420px] sm:rounded-none sm:border-y-0 sm:border-r-0 sm:border-l-[3px]"
           >
-            <div className="mb-4 flex items-center justify-between">
-              <span className="font-display text-sm font-semibold uppercase tracking-widest">{sheet.label}</span>
+            <div className="mb-5 flex items-center justify-between border-b-2 border-gold/30 pb-4">
+              <span className="font-data text-[10px] tracking-[.2em] text-gold">{sheet.label}</span>
               <button
                 type="button"
                 onClick={closeSheet}
-                className="border border-rule px-2 py-0.5 font-data text-[11px] uppercase tracking-widest text-ink-muted hover:text-ink"
+                className="rounded-full border border-felt-3/60 px-2.5 py-0.5 font-data text-[9.5px] tracking-[.14em] text-felt-2 hover:text-felt-text"
               >
-                Close
+                CLOSE
               </button>
             </div>
             {sheet.node}
@@ -96,7 +99,7 @@ export function OverlayProvider({ children }: { children: React.ReactNode }) {
         </div>
       )}
       {toastText === undefined ? null : (
-        <output className="safe-bottom fixed bottom-16 left-1/2 z-50 -translate-x-1/2 border border-rule bg-surface px-4 py-2 font-data text-xs sm:bottom-6">
+        <output className="safe-bottom fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full border-2 border-ink-green bg-stock px-4 py-2 font-data text-[10.5px] tracking-[.08em] text-ink sm:bottom-6">
           {toastText}
         </output>
       )}

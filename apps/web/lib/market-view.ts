@@ -35,7 +35,7 @@ import { isHostedRound } from "../components/hosted-round-label.js";
 // generic copy: not knowing what a number is about is a fact worth showing, and a
 // plausible guess here is a lie a judge cannot catch.
 
-type Units = {
+export type Units = {
   readonly suffix: string;
   // Decimal places the raw int256 carries. Lido's rate ratio is 1e18 fixed point where
   // 1e16 is one percentage point, so rendering it as a percentage divides by 1e16.
@@ -46,7 +46,7 @@ type Units = {
 const PERCENT: Units = { suffix: "%", exponent: 16, digits: 4 };
 const PLAIN: Units = { suffix: "", exponent: 18, digits: 4 };
 
-const unitsOf = (decoderId: number): Units =>
+export const unitsOf = (decoderId: number): Units =>
   decoderId === DEPLOYED.lidoRateRatioDecoderId ? PERCENT : PLAIN;
 
 type Subject = {
@@ -167,6 +167,13 @@ export type MarketView = {
   readonly distribution: DistributionClass;
   readonly totalPicks: number;
   readonly settlement: MarketSettlementView | undefined;
+  /// The identity a family renderer keys on and the raw thresholds it draws from. Carried
+  /// on the view so the table never re-reads a row to decide which instrument to print.
+  readonly emitter: string;
+  readonly decoderId: number;
+  readonly boundaries: readonly string[];
+  readonly sourceKey: string;
+  readonly subjectFilter: string;
 };
 
 /// Every projection field the model reads. Board rows and the detail row both satisfy it,
@@ -182,6 +189,8 @@ export type MarketViewSource = {
   readonly decoderId: number;
   readonly emitter: string;
   readonly boundaries: readonly string[];
+  readonly sourceKey: string;
+  readonly subjectFilter: string;
 };
 
 export type MarketResolutionSource = {
@@ -252,6 +261,11 @@ export const marketViewOf = (
       resolution === undefined
         ? undefined
         : { ...resolution, valueLabel: formatDecoded(resolution.value, subject.units) },
+    emitter: row.emitter,
+    decoderId: row.decoderId,
+    boundaries: row.boundaries,
+    sourceKey: row.sourceKey,
+    subjectFilter: row.subjectFilter,
   };
 };
 

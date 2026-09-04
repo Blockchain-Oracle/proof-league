@@ -110,6 +110,15 @@ export default tseslint.config(
     },
   },
   {
+    // The share images are rendered by satori (next/og), which lays out from inline style
+    // objects and reads no stylesheet at all. The styling law exists to keep hover,
+    // breakpoints and themes in CSS; a 1200px PNG has none of those, so the ban is lifted
+    // for exactly these files and nowhere else.
+    files: ["apps/web/app/api/cards/image/**/*.{ts,tsx}", "apps/web/app/**/opengraph-image.tsx"],
+    plugins: { react },
+    rules: { "react/forbid-dom-props": "off" },
+  },
+  {
     // Story 3.9 / UX-DR14: Reels is a DISCOVERY surface. It may render a Market and link
     // to the canonical composer, and it may not grow its own signing, submission, payout
     // or availability logic — a second integrity model reachable only from the fast feed

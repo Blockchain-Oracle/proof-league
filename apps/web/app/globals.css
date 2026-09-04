@@ -1,157 +1,327 @@
 @import "tailwindcss";
 
-/* Dark variant keys off data-theme, never media queries alone, so the persisted user choice wins
-   (REFERENCE-DESIGN §3; syntax verified against Tailwind v4 docs 2026-09-02). */
-@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
-
-/* Source-exact token seed from REFERENCE-DESIGN §2. Story 3.1 completes the full layer
-   (grain, crop ticks, ticker, editorial grammar); values here are the verified Yosuku ramps. */
+/* The Matchday token layer (design authority: "Proof League - The Deal v2", 2026-09-04).
+   One theme only: the table is the world, so every color here is explicit and there is
+   no light/dark swap to keep legible. Values are lifted from the design verbatim. */
 @theme inline {
-  --color-canvas: var(--canvas);
-  --color-surface: var(--surface);
-  --color-surface-strong: var(--surface-strong);
-  --color-ink: var(--ink);
-  --color-ink-muted: var(--ink-muted);
-  --color-rule: var(--rule);
-  --color-brand: var(--brand);
-  --color-brand-deep: var(--brand-deep);
-  --color-up: var(--up);
-  --color-down: var(--down);
-  --color-waiting: var(--waiting);
-  --color-recorded: var(--recorded);
-  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --color-ground: #0e1a14;
+  --color-felt: #1e4633;
+  --color-felt-deep: #173a2a;
+  --color-felt-edge: #0b1710;
+  --color-felt-rule: #2c4438;
+  --color-seat-a: #2b5a42;
+  --color-seat-b: #245039;
+
+  --color-gold: #e8b84b;
+  --color-gold-light: #f5d283;
+  --color-gold-deep: #b8912f;
+  --color-gold-dark: #8e6f22;
+  --color-gold-cream: #fff3d2;
+
+  --color-stock: #f7f1e3;
+  --color-stock-well: #efe7d4;
+  --color-ink: #14161b;
+  --color-ink-green: #14201a;
+  --color-stock-2: #4a544d;
+  --color-stock-3: #5c6660;
+  --color-stock-4: #9aa69e;
+
+  --color-felt-text: #f7f1e3;
+  --color-felt-1: #c6d6cd;
+  --color-felt-2: #a9c0b4;
+  --color-felt-3: #8fa79a;
+  --color-felt-4: #7c9488;
+  --color-felt-5: #6e8579;
+
+  --color-yield: #2563c9;
+  --color-draw: #6b4bd6;
+  --color-harvest: #c9722b;
+  --color-race: #d93c7a;
+  --color-milestone: #2e8b57;
+  --color-governance: #7b3fa0;
+  --color-allocation: #1e7f8c;
+  --color-pulse: #4a5568;
+
+  --color-correct: #1f9d55;
+  --color-correct-light: #7be8a8;
+  --color-ash: #8a8f86;
+  --color-void: #c7c2b4;
+  --color-broken: #e2a0a0;
+
+  --font-display: var(--font-bricolage), "Space Grotesk", system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), Georgia, serif;
+  --font-body: var(--font-space-grotesk), system-ui, sans-serif;
   --font-data: var(--font-jetbrains-mono), ui-monospace, monospace;
-  --font-editorial: var(--font-noto-serif-jp), ui-serif, serif;
-}
 
-/* Light is the bare default: theme-specific semantic colors are never flattened into one
-   palette, because Yosuku deliberately darkens vermilion/UP/DOWN on cream for contrast. */
-:root {
-  --canvas: #f4eee3;
-  --surface: #fbf7ee;
-  --surface-strong: #f6f0e4;
-  --ink: #141210;
-  --ink-muted: #5e574b;
-  --rule: rgba(20, 18, 16, 0.11);
-  --brand: #d93e1f;
-  --brand-deep: #b83214;
-  --up: #2e6b4f;
-  --down: #c2381f;
-  --waiting: #d69a3a;
-  --recorded: #817a72;
-}
-
-[data-theme="dark"] {
-  --canvas: #050505;
-  --surface: #0c0c0c;
-  --surface-strong: #171717;
-  --ink: #ffffff;
-  --ink-muted: #a3a3a3;
-  --rule: rgba(255, 255, 255, 0.06);
-  --brand: #e04d26;
-  --brand-deep: #b83a1b;
-  --up: #34d399;
-  --down: #fb7185;
-  --waiting: #d69a3a;
-  --recorded: #8f8a82;
+  --ease-deal: cubic-bezier(0.2, 0.9, 0.1, 1);
+  --ease-flip: cubic-bezier(0.3, 0.9, 0.15, 1);
+  --ease-needle: cubic-bezier(0.3, 1.4, 0.5, 1);
 }
 
 body {
-  background: var(--canvas);
-  color: var(--ink);
+  background: #0e1a14;
+  background-image: radial-gradient(1200px 620px at 22% 0%, rgba(255, 255, 255, 0.045), transparent 62%);
+  color: #f7f1e3;
   font-family: var(--font-body);
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
 }
 
-/* -- Story 3.1: the shared shell grammar (REFERENCE-DESIGN §4) ----------------------- */
-/* This file is the ONE owned home of raw @media/keyframes (CONVENTIONS §7): the
-   ui-grammar sweep fails any ad hoc media query outside it. */
+/* -- Surfaces the design paints with layered gradients. Tailwind cannot express these as
+   utilities without a config, so each is one owned class named for the object. -- */
 
-/* Film grain: the source's .045 overlay, an SVG turbulence tile, fixed and inert. */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 60;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+/* The felt: room glow (per family), diagonal hatch, deep inset vignette. Phone sizes
+   here; the desktop sizes live in the one @media block at the end of this file. */
+.felt {
+  background-color: #1e4633;
+  background-image:
+    radial-gradient(520px 340px at 50% 6%, var(--room-glow, transparent), transparent 66%),
+    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.13) 0 2px, transparent 2px 5px);
+  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.5);
+  transition: --room-glow 0.7s ease;
 }
-
-/* Crop ticks: registration marks on section heads and framed surfaces. */
-.crop-ticks {
-  position: relative;
+.felt[data-room="yield"] {
+  --room-glow: rgba(37, 99, 201, 0.3);
 }
-.crop-ticks::before,
-.crop-ticks::after {
-  content: "";
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  pointer-events: none;
-}
-.crop-ticks::before {
-  top: 0;
-  left: 0;
-  border-top: 1px solid var(--ink);
-  border-left: 1px solid var(--ink);
-}
-.crop-ticks::after {
-  bottom: 0;
-  right: 0;
-  border-bottom: 1px solid var(--ink);
-  border-right: 1px solid var(--ink);
+.felt[data-room="draw"] {
+  --room-glow: rgba(107, 75, 214, 0.3);
 }
 
-/* The live ticker/marquee: one continuous editorial line. Motion-safe only; reduced
-   motion holds the first copy static (sequence preserved, choreography removed, §6). */
-.ticker-track {
-  display: inline-flex;
-  white-space: nowrap;
-  animation: ticker-scroll 36s linear infinite;
+/* Brass rail (the table header) and the mobile bottom bar. */
+.brass-rail {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.14));
+  border-bottom: 2px solid rgba(232, 184, 75, 0.35);
 }
-@keyframes ticker-scroll {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .ticker-track {
-    animation: none;
-  }
+.right-rail {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.28));
 }
 
-/* Safe-area padding for the persistent mobile bottom navigation (§4). */
+/* The engraved beat plate, the medallion, the play disc: gold turned in the light. */
+.beat-plate {
+  background: linear-gradient(100deg, #8e6f22, #e8b84b 44%, #f5d283 55%, #8e6f22);
+}
+.medallion {
+  background: radial-gradient(circle at 34% 28%, #f5d283, #b8912f 70%);
+}
+.play-disc {
+  background: radial-gradient(circle at 36% 28%, #f5d283, #e8b84b 72%);
+}
+.lamp-lit {
+  background: radial-gradient(circle at 34% 30%, #ffe9ae, #e8b84b 70%);
+}
+
+/* Seat backs, the next-card back, the sealed card back. */
+.seat-back {
+  background: repeating-linear-gradient(135deg, #2b5a42 0 5px, #245039 5px 10px);
+}
+.seat-back-soft {
+  background: repeating-linear-gradient(135deg, rgba(43, 90, 66, 0.7) 0 5px, rgba(36, 80, 57, 0.7) 5px 10px);
+}
+.card-back {
+  background-color: #14201a;
+  background-image: repeating-linear-gradient(135deg, rgba(232, 184, 75, 0.07) 0 7px, transparent 7px 14px);
+}
+
+/* Foils. The gold foil is 260% wide so its position can follow the pointer; the shelf
+   version travels on its own (dSheen). Ash has no sheen, void is flat. */
+.foil-gold {
+  background-image: linear-gradient(100deg, #8e6f22 0%, #b8912f 22%, #f5d283 46%, #fff3d2 52%, #e8b84b 62%, #8e6f22 100%);
+  background-size: 260% 100%;
+  background-position: 50% 0;
+}
+.foil-sheen {
+  background-size: 240% 100%;
+  animation: dSheen 5s ease-in-out infinite;
+}
+.foil-ash {
+  background-image: linear-gradient(100deg, #8e938a, #c6cbc1 45%, #9aa096);
+}
+.foil-void {
+  background: #c7c2b4;
+}
+.slab-glass {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.05) 42%, rgba(255, 255, 255, 0.2));
+}
+.slab-glass-shelf {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.05) 45%, rgba(255, 255, 255, 0.16));
+}
+
+/* Chips: three denominations, each its own radial. */
+.chip-10 {
+  background: radial-gradient(circle at 34% 28%, #7fd8f0, #2e93c4 72%);
+}
+.chip-25 {
+  background: radial-gradient(circle at 34% 28%, #f0a0c0, #c33f76 72%);
+}
+.chip-50 {
+  background: radial-gradient(circle at 34% 28%, #f5d283, #c79a2a 72%);
+}
+.spot-pocket {
+  background: radial-gradient(circle at 50% 62%, rgba(232, 184, 75, 0.13), transparent 68%);
+}
+
+/* The striped avatar tile: gold and the seat's identicon color (five, see marks.tsx). */
+.avatar-tile {
+  background: repeating-linear-gradient(135deg, #e8b84b 0 6px, var(--tile-color, #2563c9) 6px 12px);
+}
+.tile-0 { --tile-color: #b8912f; }
+.tile-1 { --tile-color: #2563c9; }
+.tile-2 { --tile-color: #d93c7a; }
+.tile-3 { --tile-color: #1e7f8c; }
+.tile-4 { --tile-color: #c9722b; }
+
+/* Family color as a variable on the card root, so bg-(--fam) / text-(--fam) follow it. */
+.fam-yield { --fam: #2563c9; --fam-soft: rgba(37, 99, 201, 0.16); }
+.fam-draw { --fam: #6b4bd6; --fam-soft: rgba(107, 75, 214, 0.22); }
+.fam-harvest { --fam: #c9722b; --fam-soft: rgba(201, 114, 43, 0.35); }
+.fam-race { --fam: #d93c7a; --fam-soft: rgba(217, 60, 122, 0.4); }
+.fam-milestone { --fam: #2e8b57; --fam-soft: rgba(46, 139, 87, 0.4); }
+.fam-governance { --fam: #7b3fa0; --fam-soft: rgba(123, 63, 160, 0.4); }
+.fam-allocation { --fam: #1e7f8c; --fam-soft: rgba(30, 127, 140, 0.4); }
+.fam-pulse { --fam: #4a5568; --fam-soft: rgba(74, 85, 104, 0.4); }
+
+/* Sealed windows before the draw: hatched in the family's violet. */
+.window-sealed {
+  background: repeating-linear-gradient(135deg, rgba(107, 75, 214, 0.22) 0 5px, transparent 5px 10px);
+}
+
+/* The ceremony dimmer: the room goes dark and a lamp opens on the card (phone size here). */
+.ceremony {
+  background: radial-gradient(280px 300px at 50% 40%, transparent 0%, rgba(4, 10, 7, 0.6) 64%, rgba(4, 10, 7, 0.9) 100%);
+  transition: opacity 0.7s ease;
+}
+
+/* The 3D card: a flipper with two faces. overflow stays on the faces, never on the
+   flipper, because overflow:hidden flattens preserve-3d and the back shows mirrored. */
+.flipper {
+  transform-style: preserve-3d;
+  transition: transform 0.72s var(--ease-flip);
+}
+.flipper[data-flipped="true"] {
+  transform: rotateY(180deg);
+}
+.face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.face-back {
+  transform: rotateY(180deg);
+}
+.seat-flipper {
+  transform-style: preserve-3d;
+  transition: transform 0.6s var(--ease-flip);
+}
+.seat-flipper[data-flipped="true"] {
+  transform: rotateY(180deg);
+}
+.stage-3d {
+  perspective: 1600px;
+}
+.tilt {
+  transition: transform 0.3s var(--ease-deal);
+  transform-style: preserve-3d;
+  transform-origin: top center;
+}
+
+/* Needle: five row positions, one class each (the design animates `top` over 1.8s). */
+.needle {
+  transition: top 1.8s var(--ease-needle);
+}
+.needle-0 { top: 10%; }
+.needle-1 { top: 30%; }
+.needle-2 { top: 50%; }
+.needle-3 { top: 70%; }
+.needle-4 { top: 90%; }
+
+/* -- Motion, lifted verbatim. -- */
+@keyframes dLive { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
+@keyframes dStamp {
+  0% { transform: scale(2.6) rotate(-16deg); opacity: 0; }
+  55% { transform: scale(0.9) rotate(-9deg); opacity: 1; }
+  78% { transform: scale(1.07) rotate(-9deg); }
+  100% { transform: scale(1) rotate(-9deg); opacity: 1; }
+}
+@keyframes dDeal {
+  0% { transform: translate(-340px, 190px) rotate(-24deg) scale(0.82); opacity: 0; }
+  100% { transform: translate(0, 0) rotate(0) scale(1); opacity: 1; }
+}
+@keyframes dToss {
+  0% { transform: translate(-190px, 120px) scale(0.7) rotate(-40deg); opacity: 0; }
+  70% { opacity: 1; }
+  100% { transform: translate(0, 0) scale(1) rotate(var(--r, 0deg)); opacity: 1; }
+}
+@keyframes dSlab { from { transform: scale(1.16); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes dBeat { from { transform: translateX(-14px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes dPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 184, 75, 0.55); }
+  50% { box-shadow: 0 0 0 8px rgba(232, 184, 75, 0); }
+}
+@keyframes dSheen { 0% { background-position: -220% 0; } 100% { background-position: 220% 0; } }
+@keyframes dRise { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.anim-live { animation: dLive 1.6s ease-in-out infinite; }
+.anim-stamp { animation: dStamp 0.42s var(--ease-deal) both; }
+.anim-deal { animation: dDeal 0.5s var(--ease-deal) both; }
+.anim-toss { animation: dToss 0.42s var(--ease-deal) both; }
+.anim-slab { animation: dSlab 0.4s var(--ease-deal) both; }
+.anim-slab-late { animation: dSlab 0.5s var(--ease-deal) both; }
+.anim-beat { animation: dBeat 0.4s ease both; }
+.anim-pulse { animation: dPulse 1.8s ease-in-out infinite; }
+.anim-rise { animation: dRise 0.4s ease both; }
+
+/* Tally bars in twelfths (a count over the largest count on the card). */
+.bar-0 { width: 0; } .bar-1 { width: 8.33%; } .bar-2 { width: 16.67%; } .bar-3 { width: 25%; } .bar-4 { width: 33.33%; }
+.bar-5 { width: 41.67%; } .bar-6 { width: 50%; } .bar-7 { width: 58.33%; } .bar-8 { width: 66.67%; } .bar-9 { width: 75%; }
+.bar-10 { width: 83.33%; } .bar-11 { width: 91.67%; } .bar-12 { width: 100%; }
+/* Chip stack: each chip sits 7px above the one below, rotated alternately (design: dToss). */
+.pot-0 { bottom: 0; } .pot-1 { bottom: 7px; } .pot-2 { bottom: 14px; } .pot-3 { bottom: 21px; } .pot-4 { bottom: 28px; }
+.pot-5 { bottom: 35px; } .pot-6 { bottom: 42px; } .pot-7 { bottom: 49px; } .pot-8 { bottom: 56px; } .pot-9 { bottom: 63px; }
+/* Chip stack rotations: alternating, growing, as the design tosses them. */
+.toss-0 { --r: -3deg; } .toss-1 { --r: 5deg; } .toss-2 { --r: -7deg; } .toss-3 { --r: 9deg; }
+.toss-4 { --r: -11deg; } .toss-5 { --r: 13deg; } .toss-6 { --r: -15deg; } .toss-7 { --r: 17deg; }
+.toss-8 { --r: -19deg; } .toss-9 { --r: 21deg; }
+
+/* Safe-area padding for the persistent mobile bottom bar. */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Editorial serif accent: one phrase, never body copy (§2 Type). Noto Serif JP carries
-   no true italics; the slant is the deliberate faux-italic the reference uses. */
-.editorial-accent {
-  font-family: var(--font-editorial);
-  font-style: italic;
+/* The one owned home of @media (the ui-grammar sweep). */
+/* Short desktops: the 530px card shrinks so the hand and the spot keep their row
+   (the design reserves 1060px; laptops have less). */
+@media (min-width: 768px) and (max-height: 1010px) {
+  .tilt { zoom: 0.86; }
 }
-
-/* No-JS fallback only: the pre-paint script normally sets data-theme before first paint.
-   Values are the dark table from REFERENCE-DESIGN §2, duplicated verbatim by design. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --canvas: #050505;
-    --surface: #0c0c0c;
-    --surface-strong: #171717;
-    --ink: #ffffff;
-    --ink-muted: #a3a3a3;
-    --rule: rgba(255, 255, 255, 0.06);
-    --brand: #e04d26;
-    --brand-deep: #b83a1b;
-    --up: #34d399;
-    --down: #fb7185;
-    --waiting: #d69a3a;
-    --recorded: #8f8a82;
+@media (min-width: 768px) and (max-height: 900px) {
+  .tilt { zoom: 0.76; }
+}
+@media (min-width: 768px) {
+  .felt {
+    background-image:
+      radial-gradient(1000px 560px at 50% 6%, var(--room-glow, transparent), transparent 66%),
+      repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.13) 0 2px, transparent 2px 5px);
+    box-shadow: inset 0 0 180px rgba(0, 0, 0, 0.55);
+  }
+  .ceremony {
+    background: radial-gradient(460px 400px at 50% 44%, transparent 0%, rgba(4, 10, 7, 0.62) 62%, rgba(4, 10, 7, 0.88) 100%);
+  }
+}
+/* Reduced motion: discrete swaps. The same rules again under the player's own setting
+   (data-reduced-motion, set by lib/settings.ts), because a choice made in the sheet has
+   to win over an OS that says full. */
+:root[data-reduced-motion="true"] .anim-live, :root[data-reduced-motion="true"] .anim-stamp, :root[data-reduced-motion="true"] .anim-deal,
+:root[data-reduced-motion="true"] .anim-toss, :root[data-reduced-motion="true"] .anim-slab, :root[data-reduced-motion="true"] .anim-slab-late,
+:root[data-reduced-motion="true"] .anim-beat, :root[data-reduced-motion="true"] .anim-pulse, :root[data-reduced-motion="true"] .anim-rise,
+:root[data-reduced-motion="true"] .foil-sheen { animation: none; }
+:root[data-reduced-motion="true"] .flipper, :root[data-reduced-motion="true"] .seat-flipper, :root[data-reduced-motion="true"] .tilt,
+:root[data-reduced-motion="true"] .needle { transition: none; }
+/* Reduced motion: discrete swaps. */
+@media (prefers-reduced-motion: reduce) {
+  .anim-live, .anim-stamp, .anim-deal, .anim-toss, .anim-slab, .anim-slab-late, .anim-beat, .anim-pulse, .anim-rise, .foil-sheen {
+    animation: none;
+  }
+  .flipper, .seat-flipper, .tilt, .needle {
+    transition: none;
   }
 }

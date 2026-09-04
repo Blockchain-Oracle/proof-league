@@ -1,52 +1,48 @@
 import type { Metadata, Viewport } from "next";
-import { Sora, Inter, JetBrains_Mono, Noto_Serif_JP } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Serif, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { OverlayProvider } from "../components/overlay.js";
-import { Header } from "../components/shell/header.js";
-import { BottomNav } from "../components/shell/nav.js";
-import { Ticker } from "../components/shell/ticker.js";
-import { Mark } from "../components/marks.js";
+import { Felt } from "../components/shell/felt.js";
+import { Rail } from "../components/shell/rail.js";
+import { BottomBar } from "../components/shell/bottom-bar.js";
+import { PlayerProvider } from "../components/shell/player.js";
+import { FirstRun } from "../components/onboarding/first-run.js";
+import { SeatedCard } from "../components/onboarding/seated-card.js";
 
-const sora = Sora({ subsets: ["latin"], variable: "--font-sora" });
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// The four faces of the Matchday design, and only those: Bricolage for display (opsz on
+// so the 96px masthead and the 9px pips draw from the same family), Instrument Serif for
+// the italic accents, Space Grotesk for body, JetBrains Mono for every uppercase label.
+const bricolage = Bricolage_Grotesque({ subsets: ["latin"], axes: ["opsz"], variable: "--font-bricolage" });
+const instrumentSerif = Instrument_Serif({ weight: "400", style: ["normal", "italic"], subsets: ["latin"], variable: "--font-instrument-serif" });
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space-grotesk" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono" });
-const notoSerifJp = Noto_Serif_JP({ weight: ["400"], subsets: ["latin"], variable: "--font-noto-serif-jp" });
 
-// viewport-fit=cover so env(safe-area-inset-*) is real on notched phones (CONVENTIONS §7).
-export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover" };
+// viewport-fit=cover so env(safe-area-inset-*) is real on notched phones.
+export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0e1a14" };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3200"),
   title: "Proof League",
-  description:
-    "A prediction league where real Ethereum events are the matches and cryptographic proof is the referee.",
+  description: "A free-points league where real on-chain events are the cards and Creditcoin proof is the referee.",
 };
 
-// Pre-paint theme resolution (REFERENCE-DESIGN §3): stored pl.theme.v1 wins, else the system
-// preference, applied before content paints so no route ever flashes the wrong theme.
-const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("pl.theme.v1");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme="dark"}})()`;
-
-// One responsive shell for public marketing and the signed-in product (Story 3.1,
-// UX-DR4/10): header with the five jobs on desktop, safe-area bottom nav with the SAME
-// five on mobile, the live strip, and the overlay coordinator around everything.
+// The shell IS the table (design frame A/B): one felt under everything, the brass rail on
+// top of it, the page in the middle, the bottom bar on phones. The felt's room glow
+// follows whichever card is held, which is why it is a client wrapper and not a div.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${sora.variable} ${inter.variable} ${jetbrainsMono.variable} ${notoSerifJp.variable}`}>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+    <html lang="en">
+      <body className={`${bricolage.variable} ${instrumentSerif.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
         <OverlayProvider>
-          <Header />
-          <Ticker />
-          <main className="mx-auto max-w-[1280px] px-6 pb-24 md:px-8 md:pb-12">{children}</main>
-          <footer className="mt-16 border-t border-rule">
-            <div className="mx-auto flex max-w-[1280px] items-center justify-between px-6 py-6 md:px-8">
-              <span className="flex items-center gap-2 font-data text-xs text-ink-muted">
-                <Mark id="proof-league" size={14} />
-                Proof League
-              </span>
-              <span className="font-data text-xs text-ink-muted">Free points. Public record. Proof-settled.</span>
-            </div>
-          </footer>
-          <BottomNav />
+          <PlayerProvider>
+            <Felt>
+              <Rail />
+              <main className="flex min-h-0 flex-1 flex-col pb-20 md:pb-0">{children}</main>
+              <BottomBar />
+              <FirstRun />
+              <SeatedCard />
+            </Felt>
+          </PlayerProvider>
         </OverlayProvider>
       </body>
     </html>

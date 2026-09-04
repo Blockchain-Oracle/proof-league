@@ -141,6 +141,7 @@ Tests are not a product deliverable. There is no coverage target, testing epic, 
 | `CC3_RPC_URL`, `SEPOLIA_RPC_URL`, `PROVER_URL`, `EXPLORER_BASE_CC3`, `EXPLORER_BASE_SEPOLIA` | packages/chain consumers | Vercel + Fly (validated at boot, zod) |
 | `OPERATOR_WEBHOOK_URL` (alerts) | worker + external liveness cron (which runs on GitHub Actions cron, never on the worker host it monitors [review 2026-08-31]) | Fly secrets + GitHub Actions secrets |
 | `ADMIN_OPERATOR_SECRET` (G5: shared secret checked in middleware; admin surface is exempt from the design system and never uses Privy player auth) | web `admin/` routes | Vercel env |
+| `ANTHROPIC_API_KEY` (server only; the same variable name Masayume's Sensei tries first, so one key serves both products; never NEXT_PUBLIC_) | web `app/api/guide/route.ts` (League Guide reads on Claude Opus 5); absent = the drawer shows a no-provider note, dock and meter still work | Vercel env / local `.env.local` |
 | Preview builds | scratch Supabase project keys only — production keys never in previews (AD-13); enforced by a zod boot refinement: `VERCEL_ENV == 'preview'` with non-scratch DB refs refuses to boot (~5 lines) [review 2026-08-31] | Vercel preview env |
 
 All testnet-value only; `zod`-validated at boot (spine conventions row); config readers take `env` as a parameter so they unit-test without mocks (zk-freighter pattern).

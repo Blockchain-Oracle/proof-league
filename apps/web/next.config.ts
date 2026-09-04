@@ -18,6 +18,17 @@ const nextConfig: NextConfig = {
     config.resolve.extensionAlias = { ".js": [".ts", ".tsx", ".js"] };
     return config;
   },
+  // Old homes keep working (Masayume's routing law: nothing 404s). The table is the front
+  // door, so the landing goes there too.
+  redirects: async () => [
+    { source: "/", destination: "/play", permanent: false },
+    { source: "/markets", destination: "/deck", permanent: false },
+    { source: "/markets/:marketId", destination: "/play?m=:marketId", permanent: false },
+    { source: "/reels", destination: "/play", permanent: false },
+    { source: "/record", destination: "/shelf", permanent: false },
+    { source: "/create", destination: "/play", permanent: false },
+    { source: "/transparency", destination: "/proof", permanent: false },
+  ],
 };
 
 export default nextConfig;

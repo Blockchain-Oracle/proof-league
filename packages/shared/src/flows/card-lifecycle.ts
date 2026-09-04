@@ -188,3 +188,11 @@ export const deriveCardStage = (
 /// Card's identity in the spine's conventions; the nonce disambiguates a player who
 /// changed their mind, because the superseded Pick keeps its own Card in the record.
 export const cardSerialOf = (marketId: string, nonce: number): string => `${marketId}-${nonce}`;
+
+// Stage predicates for consumers that may not spell the terminal words themselves (the
+// web's chip-literal law keeps "voided" and "stuck" in one renderer). A consumer asks the
+// question; the answer's vocabulary stays here.
+export const isVoidedStage = (stage: CardStage): boolean => stage.kind === "voided";
+export const isStuckStage = (stage: CardStage): boolean => stage.kind === "stuck";
+export const isDecidedStage = (stage: CardStage): boolean =>
+  stage.kind === "correct" || stage.kind === "incorrect" || stage.kind === "voided";
